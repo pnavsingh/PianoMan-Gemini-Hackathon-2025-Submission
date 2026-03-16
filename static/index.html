@@ -1071,6 +1071,17 @@
           <div class="intro-icon-ring">💙</div>
           <div class="intro-heading">Hi, I'm Vita</div>
           <div class="intro-body">I'll check five areas — eyes, nails, tongue, teeth, and skin — using your camera. One moment while I get set up.</div>
+          <!-- Previous session banner — shown for returning users -->
+          <div id="prev-session-banner" style="display:none; margin-top:14px; padding:12px 14px; background:rgba(0,153,255,0.07); border:1px solid rgba(0,153,255,0.25); border-radius:10px; font-size:0.78rem; line-height:1.6;">
+            <div style="font-weight:700; color:var(--accent); margin-bottom:4px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px;">📋 Previous check-in found</div>
+            <div id="prev-session-date" style="color:var(--text-muted); margin-bottom:8px;"></div>
+            <div id="prev-session-tier" style="font-weight:600; margin-bottom:6px;"></div>
+            <div id="prev-session-areas" style="color:var(--text-muted);"></div>
+            <div id="prev-session-report-toggle" style="display:none; margin-top:8px;">
+              <button class="btn btn-secondary" style="padding:5px 12px; font-size:0.72rem; width:auto;" onclick="togglePrevReport()">Show previous report</button>
+              <div id="prev-session-report" style="display:none; margin-top:8px; white-space:pre-wrap; color:var(--text-muted); font-size:0.73rem; max-height:180px; overflow-y:auto;"></div>
+            </div>
+          </div>
           <div class="intro-status">
             <span class="intro-status-dot" id="intro-dot"></span>
             <span id="intro-status-text">Warming up camera...</span>
@@ -1113,7 +1124,7 @@
                 <path class="heart-outline-path" d="M50,85 C50,85 5,55 5,25 C5,10 17,2 30,2 C41,2 48,9 50,18 C52,9 59,2 70,2 C83,2 95,10 95,25 C95,55 50,85 50,85 Z"/>
                 <rect class="heart-fill-rect" x="0" y="0" width="100" height="90" fill="url(#heartGrad)" clip-path="url(#heartClip)"/>
               </svg>
-              <div class="heart-loader-label">Vita is thinking...</div>
+              <div class="heart-loader-label">Processing...</div>
             </div>
             <div id="greeting-text" style="display:none"></div>
           </div>
@@ -1166,12 +1177,13 @@
             <div class="step-counter">Step <span id="step-num">1</span> of 5</div>
           </div>
           <div class="step-card-body">
-            <div class="instructions-list" id="step-instructions"></div>
+            <div class="instructions-list" id="step-instructions" style="display:none"></div>
             <div class="step-hint" id="step-hint" style="display:none">
               <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
               <span id="step-hint-text"></span>
             </div>
             <button class="btn" id="ready-btn" onclick="markReady()">I'm Ready</button>
+            <button id="skip-btn" onclick="skipStep()" style="margin-top:8px; width:100%; background:none; border:1px solid var(--border); color:var(--text-muted); font-size:0.78rem; padding:7px; border-radius:var(--radius-sm); cursor:pointer; letter-spacing:0.2px;">Skip this step</button>
             <!-- Glasses banner — shown during eye step if glasses detected -->
             <div id="glasses-banner">
               <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
@@ -1276,6 +1288,7 @@
 // ── State ─────────────────────────────────────────────────────────────────
 let ws = null;
 let userId = '';
+let sessionId = '';
 let micEnabled = true;
 let cameraEnabled = true;
 let videoStream = null;
@@ -1514,6 +1527,55 @@ function captureFrame(highRes = false) {
   return canvas.toDataURL('image/jpeg', highRes ? 0.92 : 0.8).split(',')[1];
 }
 
+// Captures a zoomed-in JPEG cropped to the relevant body part using live landmarks.
+// Falls back to full-frame if landmarks are unavailable.
+function captureFrameZoomed(part) {
+  const video = document.getElementById('video');
+  if (video.readyState < 2) return captureFrame(true);
+  const W = 1280, H = 720;
+
+  // Draw full mirrored frame onto a temp canvas
+  const tmp = document.createElement('canvas');
+  tmp.width = W; tmp.height = H;
+  const tc = tmp.getContext('2d');
+  tc.translate(W, 0); tc.scale(-1, 1);
+  tc.drawImage(video, 0, 0, W, H);
+
+  // Compute landmark bounding box in mirrored canvas coords
+  let pts = null;
+  const LM = lastFaceLandmarks;
+  const HM = lastHandLandmarks;
+
+  if (part === 'eyes' && LM) {
+    const IDX = [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246,
+                 362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398];
+    pts = IDX.map(i => [W*(1-LM[i].x), H*LM[i].y]);
+  } else if ((part === 'tongue' || part === 'teeth') && LM) {
+    const IDX = [61,146,91,181,84,17,314,405,321,375,291,308];
+    pts = IDX.map(i => [W*(1-LM[i].x), H*LM[i].y]);
+  } else if (part === 'skin' && LM) {
+    const IDX = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,
+                 400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+    pts = IDX.map(i => [W*(1-LM[i].x), H*LM[i].y]);
+  } else if (part === 'nails' && HM.length > 0) {
+    pts = HM.flatMap(hand => hand.map(lm => [W*(1-lm.x), H*lm.y]));
+  }
+
+  if (!pts || pts.length === 0) return captureFrame(true);
+
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const pad = part === 'eyes' ? 80 : part === 'nails' ? 60 : 50;
+  const cx = Math.max(0, Math.min(...xs) - pad);
+  const cy = Math.max(0, Math.min(...ys) - pad);
+  const cw = Math.min(W - cx, Math.max(...xs) - Math.min(...xs) + pad * 2);
+  const ch = Math.min(H - cy, Math.max(...ys) - Math.min(...ys) + pad * 2);
+
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  out.getContext('2d').drawImage(tmp, cx, cy, cw, ch, 0, 0, W, H);
+  return out.toDataURL('image/jpeg', 0.92).split(',')[1];
+}
+
 function manualCapture() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   flashScreen();
@@ -1596,11 +1658,12 @@ let thumbsUpHeldMs = 0;
 let thumbsUpTriggered = false;
 let greetingTriggered = false;
 let greetingFallbackTimer = null;
-const THUMBS_HOLD_MS = 900;
+const THUMBS_HOLD_MS = 1500;
 const THUMBS_CIRCUMFERENCE = 201.1;
 
 // Consent phase
 let greetingSubPhase = 'consent'; // 'consent' | 'description'
+let descriptionTurnPending = false; // skip the first turn_complete after consent (stale consent-question turn)
 let consentPhase = false;
 let consentYesMs = 0;
 let consentNoMs = 0;
@@ -1648,6 +1711,7 @@ function triggerConsentYes() {
   if (!consentPhase) return;
   consentPhase = false;
   greetingSubPhase = 'description';
+  descriptionTurnPending = true; // next turn_complete may be a stale echo — skip it
   document.getElementById('consent-card').style.display = 'none';
   // Reset bubble for Vita's description
   document.getElementById('greeting-heart').style.display = 'flex';
@@ -1740,8 +1804,8 @@ function connectWebSocket() {
         }, 400);
       }, 800);
     }, 2500);
-    // Fallback: auto-trigger 18s after connect (user has ~15s after thumbs card appears)
-    greetingFallbackTimer = setTimeout(() => triggerGreetingScan(), 18000);
+    // Fallback: auto-trigger 8s after connect (~5.5s after thumbs card appears)
+    greetingFallbackTimer = setTimeout(() => triggerGreetingScan(), 8000);
   };
 
   ws.onclose = () => {
@@ -1774,6 +1838,7 @@ function handleServerMessage(msg) {
       break;
 
     case 'vita_speaking':
+      vitaSpeaking = msg.value;
       setCamStatus(msg.value ? 'Vita is speaking... (speak to interrupt)' : 'Listening...');
       if (msg.value) {
         // Show heart loaders when Vita starts responding
@@ -1790,6 +1855,7 @@ function handleServerMessage(msg) {
       break;
 
     case 'interrupted':
+      vitaSpeaking = false;
       nextPlayTime = 0;
       setCamStatus('Listening...');
       break;
@@ -1816,9 +1882,56 @@ function handleServerMessage(msg) {
       document.getElementById('conn-label').textContent = 'Session saved';
       break;
 
+    case 'session_ready':
+      sessionId = msg.session_id || '';
+      break;
+
+    case 'previous_session':
+      showPreviousSessionBanner(msg);
+      break;
+
     case 'error':
       document.getElementById('conn-label').textContent = 'Error: ' + msg.message;
       break;
+  }
+}
+
+// ── Previous session banner ───────────────────────────────────────────────
+function showPreviousSessionBanner(data) {
+  const banner = document.getElementById('prev-session-banner');
+  if (!banner) return;
+
+  document.getElementById('prev-session-date').textContent = 'Last check-in: ' + (data.date || 'unknown date');
+
+  // Extract tier from summary text
+  const tierMatch = (data.summary || data.report || '').match(/[✅👀🩺🚨]/);
+  const tierEl = document.getElementById('prev-session-tier');
+  if (tierMatch) tierEl.textContent = 'Previous tier: ' + tierMatch[0];
+  else tierEl.style.display = 'none';
+
+  // Show per-area quick summary
+  const areas = (data.analyses || []).map(a =>
+    `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 7px;background:rgba(255,255,255,0.06);border-radius:6px;">${a.body_part}</span>`
+  ).join('');
+  document.getElementById('prev-session-areas').innerHTML = areas ? 'Areas checked: ' + areas : '';
+
+  if (data.report) {
+    document.getElementById('prev-session-report').textContent = data.report;
+    document.getElementById('prev-session-report-toggle').style.display = 'block';
+  }
+
+  banner.style.display = 'block';
+}
+
+function togglePrevReport() {
+  const el = document.getElementById('prev-session-report');
+  const btn = document.querySelector('#prev-session-report-toggle button');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = 'Hide previous report';
+  } else {
+    el.style.display = 'none';
+    btn.textContent = 'Show previous report';
   }
 }
 
@@ -1872,10 +1985,11 @@ function checkForGlasses(text) {
   if (currentBodyPart !== 'eyes') return;
   const lower = text.toLowerCase();
 
-  // Glasses detected — start auto-checking
-  const mentionsGlasses = lower.includes('glass') || lower.includes('spectacle') || lower.includes('eyewear') || lower.includes('lens');
-  const mentionsRemove = lower.includes('remove') || lower.includes('take off') || lower.includes('without') || lower.includes('need to') || lower.includes('before');
-  if (mentionsGlasses && mentionsRemove) {
+  // Glasses detected — only trigger when Vita explicitly says the user is wearing them right now
+  const wearingGlasses = lower.includes("you're wearing glasses") || lower.includes('you are wearing glasses')
+    || lower.includes('i can see you have glasses') || lower.includes('i can see glasses')
+    || lower.includes('glasses on your face') || lower.includes('wearing spectacles');
+  if (wearingGlasses) {
     const banner = document.getElementById('glasses-banner');
     banner.style.display = 'flex';
     startGlassesAutoCheck();
@@ -1902,6 +2016,9 @@ function checkForAnalysisComplete(text) {
 }
 
 let _continuationTimer = null;
+let _autoReadyTimer = null;
+let _countdownInterval = null;
+let vitaSpeaking = false;
 
 function onTurnComplete(transcript) {
   // Hide heart loaders
@@ -1943,8 +2060,20 @@ function onTurnComplete(transcript) {
       consentYesMs = 0; consentNoMs = 0;
       updateConsentProgress(0, 0);
     } else if (greetingSubPhase === 'description') {
-      // Vita just finished describing the user — show Begin button
-      document.getElementById('begin-btn').style.display = 'block';
+      // Skip the first turn_complete after consent — it's the stale echo of Vita's
+      // consent question, not the actual description. Wait for the real description turn.
+      if (descriptionTurnPending) {
+        descriptionTurnPending = false;
+        return;
+      }
+      // Vita finished her description — auto-begin examination once she stops speaking
+      document.getElementById('begin-btn').style.display = 'none';
+      const _waitAndBegin = setInterval(() => {
+        if (!vitaSpeaking) {
+          clearInterval(_waitAndBegin);
+          setTimeout(() => { if (wizardPhase === 'greeting') beginExamination(); }, 5000);
+        }
+      }, 200);
     }
   }
 
@@ -2007,10 +2136,43 @@ function showStep(idx) {
     hintEl.style.display = 'none';
   }
 
+  // Clear any previous countdown
+  if (_autoReadyTimer) { clearTimeout(_autoReadyTimer); _autoReadyTimer = null; }
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+
   const readyBtn = document.getElementById('ready-btn');
-  readyBtn.textContent = `I'm Ready — Examine My ${step.label}`;
   readyBtn.disabled = false;
   readyBtn.style.display = 'block';
+
+  // 3-second auto-start countdown (waits for Vita to finish speaking first)
+  let secsLeft = 3;
+  readyBtn.textContent = `Starting in ${secsLeft}s — tap to begin now (${step.label})`;
+  _countdownInterval = setInterval(() => {
+    secsLeft--;
+    if (secsLeft > 0) {
+      readyBtn.textContent = `Starting in ${secsLeft}s — tap to begin now (${step.label})`;
+    } else {
+      readyBtn.textContent = `Starting now — ${step.label}`;
+      clearInterval(_countdownInterval);
+      _countdownInterval = null;
+    }
+  }, 1000);
+  _autoReadyTimer = setTimeout(() => {
+    _autoReadyTimer = null;
+    if (!stepIsScanning && wizardPhase === 'steps') {
+      if (!vitaSpeaking) {
+        markReady();
+      } else {
+        // Vita still speaking — wait for silence then fire
+        const _waitThenReady = setInterval(() => {
+          if (!vitaSpeaking && !stepIsScanning && wizardPhase === 'steps') {
+            clearInterval(_waitThenReady);
+            markReady();
+          }
+        }, 200);
+      }
+    }
+  }, 3000);
 
   document.getElementById('scanning-state').style.display = 'none';
   document.getElementById('live-transcript').textContent = '';
@@ -2029,20 +2191,29 @@ function showAnalysisFrame(b64, label) {
   // Remove old frame if present
   const old = document.getElementById('analysis-frame-thumb');
   if (old) old.remove();
-  if (!b64) return;
   const wrap = document.createElement('div');
   wrap.id = 'analysis-frame-thumb';
   wrap.className = 'analysis-frame-wrap';
-  wrap.innerHTML = `
-    <img src="data:image/jpeg;base64,${b64}" alt="Vita's view" />
-    <div class="analysis-frame-badge">✓ Vita captured this frame — ${label}</div>
-  `;
+  if (b64) {
+    wrap.innerHTML = `
+      <img src="data:image/jpeg;base64,${b64}" alt="Vita's view" style="width:100%;border-radius:10px;display:block;" />
+      <div class="analysis-frame-badge">✓ VITA CAPTURED THIS FRAME — ${label}</div>
+    `;
+  } else {
+    wrap.innerHTML = `
+      <div style="padding:14px 12px;text-align:center;color:#0099ff;font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;">✓ VITA IS ANALYZING — ${label}</div>
+    `;
+  }
   const scanState = document.getElementById('scanning-state');
-  const liveT = document.getElementById('live-transcript');
-  scanState.insertBefore(wrap, liveT);
+  // Prepend so frame is always the first visible element
+  scanState.insertBefore(wrap, scanState.firstChild);
 }
 
 function markReady() {
+  if (stepIsScanning) return; // already started — ignore duplicate calls
+  if (_autoReadyTimer) { clearTimeout(_autoReadyTimer); _autoReadyTimer = null; }
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+
   const step = STEPS[currentStepIdx];
   stepIsScanning = true;
   liveBuffer = '';
@@ -2054,9 +2225,13 @@ function markReady() {
   document.getElementById('scanning-state').style.display = 'flex';
   document.getElementById('live-transcript').style.display = 'block';
 
-  // Capture confirmation frame so user can see what Vita is looking at
-  const confirmFrame = captureFrame(true);
+  // Capture zoomed confirmation frame for this body part and upload immediately
+  const confirmFrame = captureFrameZoomed(step.id);
   showAnalysisFrame(confirmFrame, step.label);
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'save_snapshot', body_part: step.id, image_data: confirmFrame }));
+  }
 
   // Restart frame capture at higher rate
   startFrameCapture();
@@ -2070,6 +2245,8 @@ function completeStep(part, transcript) {
   if (!stepIsScanning) return;
   stepIsScanning = false;
   if (_continuationTimer) { clearTimeout(_continuationTimer); _continuationTimer = null; }
+  if (_autoReadyTimer) { clearTimeout(_autoReadyTimer); _autoReadyTimer = null; }
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
 
   const stepIdx = STEPS.findIndex(s => s.id === part);
   if (stepIdx < 0) return;
@@ -2102,6 +2279,34 @@ function completeStep(part, transcript) {
     setTimeout(() => showStep(nextIdx), 900);
   } else {
     setTimeout(() => showSummary(), 900);
+  }
+}
+
+function skipStep() {
+  // Clean up all timers and scanning state
+  stepIsScanning = false;
+  if (_continuationTimer) { clearTimeout(_continuationTimer); _continuationTimer = null; }
+  if (_autoReadyTimer) { clearTimeout(_autoReadyTimer); _autoReadyTimer = null; }
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+  stopCVScan();
+  stopGlassesAutoCheck();
+  document.getElementById('glasses-banner').style.display = 'none';
+
+  const step = STEPS[currentStepIdx];
+  if (!step) return;
+
+  // Mark nav as skipped (dim it)
+  const navEl = document.getElementById(step.navId);
+  navEl.classList.remove('active');
+  navEl.style.opacity = '0.4';
+
+  const nextIdx = currentStepIdx + 1;
+  currentStepIdx = nextIdx;
+
+  if (nextIdx < STEPS.length) {
+    setTimeout(() => showStep(nextIdx), 400);
+  } else {
+    setTimeout(() => showSummary(), 400);
   }
 }
 
@@ -2139,7 +2344,7 @@ async function generateVertexReport() {
     const resp = await fetch('/api/generate-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ summary: summaryBuffer || sessionTranscript.join('\n'), user_name: userId })
+      body: JSON.stringify({ summary: summaryBuffer || sessionTranscript.join('\n'), user_name: userId, user_id: userId, session_id: sessionId })
     });
     const data = await resp.json();
     if (data.report) {
@@ -2173,6 +2378,7 @@ function endSession() {
     greetingBuffer = ''; liveBuffer = ''; summaryBuffer = ''; collectingSummary = false;
     sessionTranscript = []; conversationHistory = []; drawerOpen = false; unreadCount = 0;
     greetingSubPhase = 'consent'; consentPhase = false; consentYesMs = 0; consentNoMs = 0;
+    sessionId = ''; vitaSpeaking = false;
 
     document.getElementById('app-screen').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
@@ -2197,6 +2403,8 @@ function endSession() {
     document.getElementById('greeting-text').textContent = '';
     document.getElementById('consent-card').style.display = 'none';
     document.getElementById('begin-btn').style.display = 'none';
+    const psb = document.getElementById('prev-session-banner');
+    if (psb) { psb.style.display = 'none'; document.getElementById('prev-session-report').style.display = 'none'; }
     const vrc = document.getElementById('vertex-report-card');
     if (vrc) { vrc.style.display = 'none'; document.getElementById('vertex-report-text').textContent = ''; }
     const vb = document.getElementById('vertex-btn');

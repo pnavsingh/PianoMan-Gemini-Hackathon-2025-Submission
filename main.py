@@ -79,7 +79,7 @@ Now look at the camera and narrate what you see feature by feature — do not ru
 - Eyelids: any swelling, drooping, crusty edges (blepharitis), or dandruff-like flakes
 - Under-eye area: color — blue-purple = fatigue or venous pooling; brown = genetics or UV damage; very dark = dehydration
 
-Say "Analysis complete. Moving on." only when you have covered all of the above.
+Before moving on, ask "Do you have any questions about your eyes, or are you ready to continue?" and wait for their response. Once they confirm they're ready, say "Analysis complete."
 
 STEP 2 — FINGERNAILS:
 Instructions: "Hold both hands out flat, palm-down, about 6 inches from the camera. Spread your fingers so I can see each nail. Try to get as much light as possible."
@@ -96,7 +96,7 @@ Examine methodically — one feature at a time, out loud:
 - Any white spots (leukonychia)?
 - Note differences between fingers — are some nails different from others?
 
-Say "Analysis complete. Moving on." only when you have covered all of the above.
+Before moving on, ask "Do you have any questions about your nails, or are you ready to continue?" and wait for their response. Once they confirm they're ready, say "Analysis complete."
 
 STEP 3 — TONGUE:
 Instructions: "Stick your tongue out as far as you can and hold it still. Good lighting really helps here — try to face a light if you can."
@@ -111,7 +111,7 @@ Narrate what you see:
 - Any sores, ulcers, or unusual spots?
 - Tremor? Does it shake when extended?
 
-Say "Analysis complete. Moving on." when finished.
+Before moving on, ask "Do you have any questions about your tongue, or are you ready to continue?" and wait for their response. Once they confirm they're ready, say "Analysis complete."
 
 STEP 4 — TEETH AND GUMS:
 Instructions: "Give me a big smile first. Now pull your lower lip down with your fingers so I can see the gum line."
@@ -125,7 +125,7 @@ Narrate:
 - Enamel: any notching at the gum line (abrasion) or cupped surfaces (acid erosion)?
 - Alignment: anything that could trap plaque or create hygiene difficulty?
 
-Say "Analysis complete. Moving on." when finished.
+Before moving on, ask "Do you have any questions about your teeth and gums, or are you ready to continue?" and wait for their response. Once they confirm they're ready, say "Analysis complete."
 
 STEP 5 — SKIN:
 Instructions: "Show me the backs of your hands first, then flip to the palms, then bring the camera to your face."
@@ -135,7 +135,7 @@ Narrate as each comes into frame — describe what you currently see, not what y
 - Palms: palmar crease color (if creases are pale/white = significant anemia concern), redness, any thickening
 - Face: overall tone, any redness, butterfly rash across cheeks (lupus concern), periorbital darkening, puffiness, visible pores, oiliness or dryness, any spots or moles worth noting (asymmetry, irregular borders, multiple colors = ABCDE concern)
 
-Say "Analysis complete. Moving on." when finished.
+Before moving on, ask "Do you have any questions about your skin, or are you ready to continue?" and wait for their response. Once they confirm they're ready, say "Analysis complete."
 
 ══════════════════════════════════════════════════
 CLINICAL REFERENCE — use this when interpreting findings:
@@ -258,7 +258,7 @@ try:
     from vertexai.generative_models import GenerativeModel
     if GOOGLE_CLOUD_PROJECT:
         vertexai.init(project=GOOGLE_CLOUD_PROJECT, location="us-central1")
-        vertex_model = GenerativeModel("gemini-1.5-pro")
+        vertex_model = GenerativeModel("gemini-1.5-flash-002")
         print("✓ Vertex AI connected")
     else:
         print("Vertex AI skipped (no GOOGLE_CLOUD_PROJECT set)")
@@ -301,8 +301,8 @@ async def get_history(user_id: str):
     try:
         from google.cloud.firestore import Query
         sessions_ref = (
-            db.collection("vita_sessions")
-            .where("user_id", "==", user_id)
+            db.collection("users").document(user_id)
+            .collection("sessions")
             .order_by("created_at", direction=Query.DESCENDING)
             .limit(5)
         )
@@ -315,16 +315,13 @@ async def get_history(user_id: str):
 class ReportRequest(BaseModel):
     summary: str
     user_name: str = "User"
+    user_id: str = ""
+    session_id: str = ""
 
 
 @app.post("/api/generate-report")
 async def generate_report(req: ReportRequest):
-    """Use Vertex AI (Gemini 1.5 Pro) to produce a structured clinical wellness report."""
-    if not vertex_model:
-        return JSONResponse({
-            "report": None,
-            "note": "Vertex AI not configured — set GOOGLE_CLOUD_PROJECT to enable enhanced reports."
-        })
+    """Use Gemini API to produce a structured clinical wellness report, saved to Firestore."""
     try:
         prompt = f"""You are a clinical health writer. Below is a raw AI wellness screening transcript for a patient named {req.user_name}.
 
@@ -341,10 +338,23 @@ Please produce a concise, structured **Wellness Report** with the following sect
 Keep the tone warm but clinically precise. Use plain language. Maximum 350 words."""
 
         response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: vertex_model.generate_content(prompt)
+            None, lambda: client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
         )
         report_text = response.text
-        return JSONResponse({"report": report_text, "model": "gemini-1.5-pro (Vertex AI)"})
+
+        # Persist report to Firestore so it loads on next sign-in
+        if db and req.user_id and req.session_id:
+            try:
+                db.collection("users").document(req.user_id) \
+                  .collection("sessions").document(req.session_id) \
+                  .update({"report": report_text, "report_generated_at": datetime.utcnow().isoformat()})
+            except Exception as fe:
+                print(f"Report Firestore save failed (non-fatal): {fe}")
+
+        return JSONResponse({"report": report_text, "model": "gemini-2.0-flash"})
     except Exception as e:
         return JSONResponse({"report": None, "error": str(e)}, status_code=500)
 
@@ -355,25 +365,64 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
     # ── Load previous session for context ────────────────────────────────
     previous_context = ""
+    previous_session_payload: dict | None = None
     if db:
         try:
             from google.cloud.firestore import Query
-            prev = (
-                db.collection("vita_sessions")
-                .where("user_id", "==", user_id)
-                .order_by("created_at", direction=Query.DESCENDING)
-                .limit(1)
-                .stream()
+            prev_stream = (
+                db.collection("users").document(user_id)
+                  .collection("sessions")
+                  .order_by("created_at", direction=Query.DESCENDING)
+                  .limit(1)
+                  .stream()
             )
-            prev_list = list(prev)
+            prev_list = list(prev_stream)
             if prev_list:
                 p = prev_list[0].to_dict()
-                date_str = p.get("created_at", "a previous session")
-                summary = p.get("summary", "No summary available")
+                raw_date = p.get("created_at", "")
+                # Format date nicely for display
+                try:
+                    from datetime import timezone
+                    dt = datetime.fromisoformat(raw_date)
+                    formatted_date = dt.strftime("%B %d, %Y at %I:%M %p UTC")
+                except Exception:
+                    formatted_date = raw_date
+
+                analyses = p.get("analyses", [])
+                summary = p.get("summary", "")
+                report = p.get("report", "")
+
+                # Build rich comparison context for Gemini
                 previous_context = (
-                    f"\n\nPREVIOUS SESSION DATA ({date_str}):\n{summary}\n"
-                    "Please compare today's findings with this previous session."
+                    f"\n\n══════════════════════════════════════════════════\n"
+                    f"PREVIOUS SESSION — {formatted_date}\n"
+                    f"══════════════════════════════════════════════════\n"
                 )
+                if analyses:
+                    previous_context += "Per-area findings from last check-in:\n"
+                    for a in analyses:
+                        part = a.get("body_part", "unknown").upper()
+                        text = a.get("analysis", "")[:400]
+                        previous_context += f"• {part}: {text}\n"
+                if summary:
+                    previous_context += f"\nOverall summary: {summary[:600]}\n"
+                if report:
+                    previous_context += f"\nPrevious enhanced report:\n{report[:800]}\n"
+                previous_context += (
+                    "\nIMPORTANT: When examining each body part today, explicitly compare "
+                    "your observations to the findings above. Call out improvements, "
+                    "new concerns, or anything unchanged. Be specific — mention what "
+                    "changed and what stayed the same for each area."
+                )
+
+                # Payload sent to the browser for UI display
+                previous_session_payload = {
+                    "date": formatted_date,
+                    "raw_date": raw_date,
+                    "analyses": analyses,
+                    "summary": summary,
+                    "report": report,
+                }
         except Exception as e:
             print(f"Could not load history: {e}")
 
@@ -409,6 +458,17 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     vita_speaking = False  # UI indicator only — mic and camera always stream
 
     try:
+        # Tell the browser which session it's in + surface previous session data
+        await websocket.send_text(json.dumps({
+            "type": "session_ready",
+            "session_id": session_id,
+        }))
+        if previous_session_payload:
+            await websocket.send_text(json.dumps({
+                "type": "previous_session",
+                **previous_session_payload,
+            }))
+
         async with client.aio.live.connect(model=MODEL, config=live_config) as gemini:
 
             # Kick-start is deferred — frontend sends "start_greeting" after
@@ -500,7 +560,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                             analysis_text = msg.get("analysis", "")
                             image_url = ""
 
-                            if last_frame and gcs_bucket_client:
+                            # Prefer explicit image_data from frontend (zoomed capture);
+                            # fall back to last_frame received via video stream.
+                            raw_image_data = msg.get("image_data")
+                            frame_to_save = (
+                                base64.b64decode(raw_image_data) if raw_image_data else last_frame
+                            )
+
+                            if frame_to_save and gcs_bucket_client:
                                 try:
                                     blob_name = (
                                         f"health_scans/{user_id}/{session_id}/"
@@ -508,7 +575,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     )
                                     blob = gcs_bucket_client.blob(blob_name)
                                     blob.upload_from_string(
-                                        last_frame, content_type="image/jpeg"
+                                        frame_to_save, content_type="image/jpeg"
                                     )
                                     image_url = f"gs://{GCS_BUCKET}/{blob_name}"
                                 except Exception as e:
@@ -551,7 +618,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                         "The user confirmed with a thumbs up. "
                                         "Look at the camera frames right now. "
                                         "Give ONE short sentence — just the 2 or 3 most obvious things you can see "
-                                        "(e.g. glasses or no glasses, hair color, rough age). "
+                                        "(e.g. hair color, rough age, skin tone). "
                                         "Keep it to 1-2 sentences maximum. Then ask 'Does that look about right?' "
                                         "Do NOT write a paragraph. Do NOT list every feature you see."
                                     ))], role="user")],
@@ -586,7 +653,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     "and the under-eye area color (blue-purple, brown, cream, or something else?). "
                                     "If anything is unclear or out of frame, say so explicitly — do not fill in from memory. "
                                     "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your eyes? I'm happy to look more closely at anything.' "
-                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then ask 'Do you have any other questions, or are you ready to continue?' and wait. Once they confirm they're ready, say 'Analysis complete.'"
                                 ),
                                 "nails": (
                                     "STOP. Do not say anything yet. "
@@ -599,7 +666,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     "Call out any nail that looks different from the others. "
                                     "If the hands are unclear or lighting is bad, say so — do not guess. "
                                     "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your nails? I can look at any individual finger more closely.' "
-                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then ask 'Do you have any other questions, or are you ready to continue?' and wait. Once they confirm they're ready, say 'Analysis complete.'"
                                 ),
                                 "tongue": (
                                     "STOP. Do not say anything yet. "
@@ -611,7 +678,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     "Any visible sores, patches, or tremor when extended? "
                                     "Every detail must come from what you can see in this frame — not from clinical memory. "
                                     "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your tongue? I can examine any area more carefully.' "
-                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then ask 'Do you have any other questions, or are you ready to continue?' and wait. Once they confirm they're ready, say 'Analysis complete.'"
                                 ),
                                 "teeth": (
                                     "STOP. Do not say anything yet. "
@@ -623,7 +690,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     "Any visible enamel notching or erosion? "
                                     "Only describe what is in frame — do not fill in unseen areas from assumption. "
                                     "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your teeth and gums? I can focus on any particular area.' "
-                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then ask 'Do you have any other questions, or are you ready to continue?' and wait. Once they confirm they're ready, say 'Analysis complete.'"
                                 ),
                                 "skin": (
                                     "STOP. Do not say anything yet. "
@@ -635,7 +702,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     "Face — any redness, butterfly pattern across nose/cheeks, puffiness, visible pores, pigment differences? "
                                     "Describe only what you can actually see in these frames. "
                                     "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your skin? I can take a closer look at any area.' "
-                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then ask 'Do you have any other questions, or are you ready to continue?' and wait. Once they confirm they're ready, say 'Analysis complete.'"
                                 ),
                             }
                             prompt = look_prompts.get(
@@ -665,9 +732,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                             session_data["summary"] = msg.get("summary", "")
                             if db:
                                 try:
-                                    db.collection("vita_sessions").document(session_id).set(
-                                        session_data
-                                    )
+                                    db.collection("users").document(user_id) \
+                                      .collection("sessions").document(session_id) \
+                                      .set(session_data)
                                 except Exception as e:
                                     print(f"Firestore save failed: {e}")
                             await websocket.send_text(
