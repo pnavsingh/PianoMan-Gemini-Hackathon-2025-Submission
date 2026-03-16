@@ -1908,19 +1908,25 @@ function onTurnComplete(transcript) {
   const sh = document.getElementById('scan-heart-wrap');
   if (sh) sh.style.display = 'none';
 
-  // Auto-continuation: if Vita stopped mid-scan without finishing, gently nudge her
-  // after 3 seconds (gives time to see if she resumes on her own)
+  // Auto-continuation: only nudge if Vita stopped mid-analysis WITHOUT having
+  // asked the follow-up question yet. If she already asked "any specific questions?"
+  // she is intentionally waiting for the user — do not interrupt that.
   if (wizardPhase === 'steps' && stepIsScanning) {
-    const done = liveBuffer.toLowerCase().includes('analysis complete');
+    const lb = liveBuffer.toLowerCase();
+    const done = lb.includes('analysis complete');
+    const askedFollowUp = lb.includes('specific questions') || lb.includes('any questions');
     const hasContent = liveBuffer.trim().length > 30;
-    if (!done && hasContent) {
+    if (!done && !askedFollowUp && hasContent) {
       if (_continuationTimer) clearTimeout(_continuationTimer);
       _continuationTimer = setTimeout(() => {
         _continuationTimer = null;
-        if (wizardPhase === 'steps' && stepIsScanning && !liveBuffer.toLowerCase().includes('analysis complete')) {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'text_input', text: 'Please continue your analysis.' }));
-          }
+        const lb2 = liveBuffer.toLowerCase();
+        const stillPending = wizardPhase === 'steps' && stepIsScanning
+          && !lb2.includes('analysis complete')
+          && !lb2.includes('specific questions')
+          && !lb2.includes('any questions');
+        if (stillPending && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'text_input', text: 'Please continue your analysis.' }));
         }
       }, 3000);
     }
