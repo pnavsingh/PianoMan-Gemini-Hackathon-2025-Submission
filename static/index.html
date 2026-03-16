@@ -197,7 +197,7 @@
       transform: scaleX(-1);
       transition: transform 0.5s ease;
     }
-    #video.scanning { transform: scaleX(-1) scale(1.04); }
+    #video.scanning { transform: scaleX(-1); }
     #cv-overlay {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
@@ -910,6 +910,21 @@
     }
     .intro-status-dot.ready { background: var(--good); animation: none; box-shadow: 0 0 6px rgba(0,204,136,0.45); }
     #intro-card, #thumbs-card { transition: opacity 0.4s ease; }
+
+    /* ── Analysis frame confirmation ─────────────────────────── */
+    .analysis-frame-wrap {
+      position: relative; border-radius: var(--radius-sm); overflow: hidden;
+      border: 1px solid rgba(0,153,255,0.25); margin-bottom: 8px;
+      animation: slideUp 0.3s ease;
+    }
+    .analysis-frame-wrap img { width: 100%; display: block; }
+    .analysis-frame-badge {
+      position: absolute; bottom: 7px; left: 8px;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.3px;
+      color: #0099ff; background: rgba(0,0,0,0.75);
+      padding: 3px 9px; border-radius: 4px;
+      text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
@@ -1102,6 +1117,40 @@
             </div>
             <div id="greeting-text" style="display:none"></div>
           </div>
+
+          <!-- Consent gesture card — shown after Vita asks for consent -->
+          <div id="consent-card" style="display:none; flex-direction:column; align-items:center; gap:12px; padding:16px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:var(--radius);">
+            <div style="font-size:0.82rem; font-weight:600;">Your call</div>
+            <div style="font-size:0.76rem; color:var(--text-muted); text-align:center; max-width:220px; line-height:1.6;">Hold a gesture so Vita can see your answer</div>
+            <div style="display:flex; gap:24px; align-items:center; justify-content:center;">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="position:relative; width:62px; height:62px; display:flex; align-items:center; justify-content:center;">
+                  <svg width="62" height="62" viewBox="0 0 62 62">
+                    <circle cx="31" cy="31" r="26" fill="none" stroke="var(--border)" stroke-width="3.5"/>
+                    <circle id="consent-yes-circle" cx="31" cy="31" r="26" fill="none" stroke="var(--good)" stroke-width="3.5"
+                      stroke-dasharray="163.4" stroke-dashoffset="163.4"
+                      stroke-linecap="round" transform="rotate(-90 31 31)"/>
+                  </svg>
+                  <div style="position:absolute; font-size:1.4rem;">👍</div>
+                </div>
+                <div style="font-size:0.7rem; color:var(--good); font-weight:600;">Yes, proceed</div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="position:relative; width:62px; height:62px; display:flex; align-items:center; justify-content:center;">
+                  <svg width="62" height="62" viewBox="0 0 62 62">
+                    <circle cx="31" cy="31" r="26" fill="none" stroke="var(--border)" stroke-width="3.5"/>
+                    <circle id="consent-no-circle" cx="31" cy="31" r="26" fill="none" stroke="var(--danger)" stroke-width="3.5"
+                      stroke-dasharray="163.4" stroke-dashoffset="163.4"
+                      stroke-linecap="round" transform="rotate(-90 31 31)"/>
+                  </svg>
+                  <div style="position:absolute; font-size:1.4rem;">👎</div>
+                </div>
+                <div style="font-size:0.7rem; color:var(--danger); font-weight:600;">No, decline</div>
+              </div>
+            </div>
+            <div id="consent-status-text" style="font-size:0.73rem; color:var(--text-muted); height:16px;"></div>
+          </div>
+
           <button class="btn" id="begin-btn" onclick="beginExamination()" style="display:none">
             Begin Examination →
           </button>
@@ -1163,7 +1212,16 @@
         <div class="summary-content-card" id="summary-content"></div>
         <div class="summary-actions">
           <button class="btn" onclick="saveSession()">Save Report</button>
+          <button class="btn" id="vertex-btn" onclick="generateVertexReport()" style="background:linear-gradient(135deg,#4285f4,#0f9d58)">
+            ✨ Enhanced Report (Vertex AI)
+          </button>
           <button class="btn btn-secondary" onclick="endSession()">End Session</button>
+        </div>
+        <div id="vertex-report-card" style="display:none; margin-top:10px; background:rgba(66,133,244,0.05); border:1px solid rgba(66,133,244,0.2); border-radius:var(--radius); padding:16px 18px;">
+          <div style="font-size:0.7rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:rgba(66,133,244,0.9); margin-bottom:10px;">
+            ✦ Vertex AI Clinical Summary — Gemini 1.5 Pro
+          </div>
+          <div id="vertex-report-text" style="font-size:0.83rem; line-height:1.85; color:var(--text-dim); white-space:pre-wrap;"></div>
         </div>
       </div>
 
@@ -1541,6 +1599,13 @@ let greetingFallbackTimer = null;
 const THUMBS_HOLD_MS = 900;
 const THUMBS_CIRCUMFERENCE = 201.1;
 
+// Consent phase
+let greetingSubPhase = 'consent'; // 'consent' | 'description'
+let consentPhase = false;
+let consentYesMs = 0;
+let consentNoMs = 0;
+const CONSENT_CIRCUMFERENCE = 163.4; // 2π × 26
+
 function isThumbsUp(landmarks) {
   // Thumb tip (4) must be clearly above thumb base (2)
   if (landmarks[4].y >= landmarks[2].y - 0.04) return false;
@@ -1562,9 +1627,52 @@ function updateThumbsProgress(heldMs) {
   }
 }
 
+function isThumbsDown(landmarks) {
+  // Thumb tip (4) clearly below its IP joint (3) — pointing down
+  if (landmarks[4].y <= landmarks[3].y + 0.03) return false;
+  // All other fingers curled
+  const curled = (tip, pip) => landmarks[tip].y > landmarks[pip].y - 0.02;
+  return curled(8,6) && curled(12,10) && curled(16,14) && curled(20,18);
+}
+
+function updateConsentProgress(yesMs, noMs) {
+  const yc = document.getElementById('consent-yes-circle');
+  const nc = document.getElementById('consent-no-circle');
+  const st = document.getElementById('consent-status-text');
+  if (yc) yc.setAttribute('stroke-dashoffset', (CONSENT_CIRCUMFERENCE * (1 - Math.min(yesMs / THUMBS_HOLD_MS, 1))).toFixed(1));
+  if (nc) nc.setAttribute('stroke-dashoffset', (CONSENT_CIRCUMFERENCE * (1 - Math.min(noMs / THUMBS_HOLD_MS, 1))).toFixed(1));
+  if (st) st.textContent = (yesMs > 0 || noMs > 0) ? 'Hold it...' : '';
+}
+
+function triggerConsentYes() {
+  if (!consentPhase) return;
+  consentPhase = false;
+  greetingSubPhase = 'description';
+  document.getElementById('consent-card').style.display = 'none';
+  // Reset bubble for Vita's description
+  document.getElementById('greeting-heart').style.display = 'flex';
+  document.getElementById('greeting-text').style.display = 'none';
+  document.getElementById('greeting-text').textContent = '';
+  greetingBuffer = '';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'consent_confirm' }));
+  }
+}
+
+function triggerConsentNo() {
+  if (!consentPhase) return;
+  consentPhase = false;
+  document.getElementById('consent-card').style.display = 'none';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'consent_decline' }));
+  }
+}
+
 function triggerGreetingScan() {
   if (greetingTriggered) return;
   greetingTriggered = true;
+  greetingSubPhase = 'consent';
+  consentPhase = false;
   if (greetingFallbackTimer) { clearTimeout(greetingFallbackTimer); greetingFallbackTimer = null; }
 
   // Transition UI: hide thumbs card, show vita response
@@ -1793,14 +1901,45 @@ function checkForAnalysisComplete(text) {
   }
 }
 
+let _continuationTimer = null;
+
 function onTurnComplete(transcript) {
   // Hide heart loaders
   const sh = document.getElementById('scan-heart-wrap');
   if (sh) sh.style.display = 'none';
 
+  // Auto-continuation: if Vita stopped mid-scan without finishing, gently nudge her
+  // after 3 seconds (gives time to see if she resumes on her own)
+  if (wizardPhase === 'steps' && stepIsScanning) {
+    const done = liveBuffer.toLowerCase().includes('analysis complete');
+    const hasContent = liveBuffer.trim().length > 30;
+    if (!done && hasContent) {
+      if (_continuationTimer) clearTimeout(_continuationTimer);
+      _continuationTimer = setTimeout(() => {
+        _continuationTimer = null;
+        if (wizardPhase === 'steps' && stepIsScanning && !liveBuffer.toLowerCase().includes('analysis complete')) {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'text_input', text: 'Please continue your analysis.' }));
+          }
+        }
+      }, 3000);
+    }
+  } else {
+    if (_continuationTimer) { clearTimeout(_continuationTimer); _continuationTimer = null; }
+  }
+
   if (wizardPhase === 'greeting') {
-    // Show "Begin Examination" button after first turn
-    document.getElementById('begin-btn').style.display = 'block';
+    if (greetingSubPhase === 'consent') {
+      // Vita just asked for consent — show the gesture card
+      const card = document.getElementById('consent-card');
+      if (card) card.style.display = 'flex';
+      consentPhase = true;
+      consentYesMs = 0; consentNoMs = 0;
+      updateConsentProgress(0, 0);
+    } else if (greetingSubPhase === 'description') {
+      // Vita just finished describing the user — show Begin button
+      document.getElementById('begin-btn').style.display = 'block';
+    }
   }
 
   // Add completed Vita turn to conversation drawer
@@ -1870,12 +2009,31 @@ function showStep(idx) {
   document.getElementById('scanning-state').style.display = 'none';
   document.getElementById('live-transcript').textContent = '';
   document.getElementById('glasses-banner').style.display = 'none';
+  const oldFrame = document.getElementById('analysis-frame-thumb');
+  if (oldFrame) oldFrame.remove();
   stopGlassesAutoCheck();
 
   startCVScan(step.id);
 
   // Scroll to top of wizard
   document.getElementById('wizard-scroll').scrollTop = 0;
+}
+
+function showAnalysisFrame(b64, label) {
+  // Remove old frame if present
+  const old = document.getElementById('analysis-frame-thumb');
+  if (old) old.remove();
+  if (!b64) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'analysis-frame-thumb';
+  wrap.className = 'analysis-frame-wrap';
+  wrap.innerHTML = `
+    <img src="data:image/jpeg;base64,${b64}" alt="Vita's view" />
+    <div class="analysis-frame-badge">✓ Vita captured this frame — ${label}</div>
+  `;
+  const scanState = document.getElementById('scanning-state');
+  const liveT = document.getElementById('live-transcript');
+  scanState.insertBefore(wrap, liveT);
 }
 
 function markReady() {
@@ -1890,6 +2048,10 @@ function markReady() {
   document.getElementById('scanning-state').style.display = 'flex';
   document.getElementById('live-transcript').style.display = 'block';
 
+  // Capture confirmation frame so user can see what Vita is looking at
+  const confirmFrame = captureFrame(true);
+  showAnalysisFrame(confirmFrame, step.label);
+
   // Restart frame capture at higher rate
   startFrameCapture();
 
@@ -1901,6 +2063,7 @@ function markReady() {
 function completeStep(part, transcript) {
   if (!stepIsScanning) return;
   stepIsScanning = false;
+  if (_continuationTimer) { clearTimeout(_continuationTimer); _continuationTimer = null; }
 
   const stepIdx = STEPS.findIndex(s => s.id === part);
   if (stepIdx < 0) return;
@@ -1958,6 +2121,36 @@ function saveSession() {
   ws.send(JSON.stringify({ type: 'end_session', summary: summaryBuffer || sessionTranscript.join('\n') }));
 }
 
+async function generateVertexReport() {
+  const btn = document.getElementById('vertex-btn');
+  const card = document.getElementById('vertex-report-card');
+  const textEl = document.getElementById('vertex-report-text');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating...';
+  card.style.display = 'block';
+  textEl.textContent = 'Sending to Vertex AI (Gemini 1.5 Pro)...';
+  try {
+    const resp = await fetch('/api/generate-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary: summaryBuffer || sessionTranscript.join('\n'), user_name: userId })
+    });
+    const data = await resp.json();
+    if (data.report) {
+      textEl.textContent = data.report;
+      btn.textContent = '✓ Enhanced Report Ready';
+    } else {
+      textEl.textContent = data.note || data.error || 'Vertex AI unavailable.';
+      btn.disabled = false;
+      btn.textContent = '✨ Enhanced Report (Vertex AI)';
+    }
+  } catch (e) {
+    textEl.textContent = 'Request failed: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '✨ Enhanced Report (Vertex AI)';
+  }
+}
+
 function endSession() {
   saveSession();
   setTimeout(() => {
@@ -1973,6 +2166,7 @@ function endSession() {
     wizardPhase = 'greeting'; currentStepIdx = -1; stepIsScanning = false;
     greetingBuffer = ''; liveBuffer = ''; summaryBuffer = ''; collectingSummary = false;
     sessionTranscript = []; conversationHistory = []; drawerOpen = false; unreadCount = 0;
+    greetingSubPhase = 'consent'; consentPhase = false; consentYesMs = 0; consentNoMs = 0;
 
     document.getElementById('app-screen').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
@@ -1995,6 +2189,12 @@ function endSession() {
     document.getElementById('greeting-heart').style.display = 'flex';
     document.getElementById('greeting-text').style.display = 'none';
     document.getElementById('greeting-text').textContent = '';
+    document.getElementById('consent-card').style.display = 'none';
+    document.getElementById('begin-btn').style.display = 'none';
+    const vrc = document.getElementById('vertex-report-card');
+    if (vrc) { vrc.style.display = 'none'; document.getElementById('vertex-report-text').textContent = ''; }
+    const vb = document.getElementById('vertex-btn');
+    if (vb) { vb.disabled = false; vb.textContent = '✨ Enhanced Report (Vertex AI)'; }
     document.getElementById('intro-card').style.display = 'flex';
     document.getElementById('intro-card').style.opacity = '1';
     document.getElementById('intro-dot').classList.remove('ready');
@@ -2048,6 +2248,27 @@ function runLandmarkDetection() {
               // Decay quickly when hand drops
               thumbsUpHeldMs = Math.max(0, thumbsUpHeldMs - dt * 2.5);
               updateThumbsProgress(thumbsUpHeldMs);
+            }
+          }
+
+          // Consent phase: detect thumbs up (yes) and thumbs down (no)
+          if (consentPhase && wizardPhase === 'greeting') {
+            const hasYes = lastHandLandmarks.some(isThumbsUp);
+            const hasNo  = lastHandLandmarks.some(isThumbsDown);
+            if (hasYes && !hasNo) {
+              consentYesMs = Math.min(consentYesMs + dt, THUMBS_HOLD_MS);
+              consentNoMs  = Math.max(0, consentNoMs - dt * 2.5);
+              updateConsentProgress(consentYesMs, consentNoMs);
+              if (consentYesMs >= THUMBS_HOLD_MS) triggerConsentYes();
+            } else if (hasNo && !hasYes) {
+              consentNoMs  = Math.min(consentNoMs + dt, THUMBS_HOLD_MS);
+              consentYesMs = Math.max(0, consentYesMs - dt * 2.5);
+              updateConsentProgress(consentYesMs, consentNoMs);
+              if (consentNoMs >= THUMBS_HOLD_MS) triggerConsentNo();
+            } else {
+              consentYesMs = Math.max(0, consentYesMs - dt * 2.5);
+              consentNoMs  = Math.max(0, consentNoMs - dt * 2.5);
+              updateConsentProgress(consentYesMs, consentNoMs);
             }
           }
 

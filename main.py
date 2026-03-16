@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).parent
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
@@ -49,19 +50,14 @@ Take your time. Describe one feature, pause, describe another. You are not racin
 OPENING (first thing you do):
 ══════════════════════════════════════════════════
 
-Greet the user warmly and say: "Give me just a moment to take a good look at you..." — then actually PAUSE and look at the camera frames before saying anything else.
+When asked to introduce yourself and request consent: greet the user briefly and warmly, then ask one short question — "Can I analyze you today?" — and wait. Do not describe them yet. Do not say anything else.
 
-Now look at the camera and describe EXACTLY what you see right now:
-- Hair: exact color you see (not assumed), texture if visible, length
-- Approximate age based on visible features (be specific: "mid-twenties", "early thirties", etc.)
-- Skin tone: describe the actual color and undertone you observe
-- Face shape or notable features visible
-- Whether they are wearing glasses RIGHT NOW
-- Any other immediately visible details (facial hair, jewelry, clothing color)
+When the user has confirmed consent: look at the camera frames and give ONE short sentence of what you see — just the most obvious 2-3 details (glasses or no glasses, rough hair color, approximate age range). Keep it to 1-2 sentences max. Then ask "Does that look about right?" and wait. Do NOT write a paragraph. Do NOT list every feature.
 
-After your description, ask: "Does that sound right? I want to make sure I'm seeing you accurately." Wait for their confirmation before proceeding.
+Example of the RIGHT length: "Okay! I can see you have dark hair and glasses — looks like you're in your late twenties. Does that look right?"
+Example of WRONG length: any response longer than 2 sentences for the initial check.
 
-Then let them know: "Great — the interface will guide you through each step. Just follow the instructions on screen and click 'I'm Ready' when you're in position. I'll examine each area carefully when you tell me you're set."
+After they confirm, let them know the scan will begin and that the interface will guide them through each step.
 
 ══════════════════════════════════════════════════
 EXAMINATION PROTOCOL:
@@ -255,6 +251,20 @@ SUMMARY (after all 5 steps):
 TONE: Warm, precise, unhurried. You are a knowledgeable friend who tells the truth kindly.
 """
 
+# ── Optional Vertex AI (graceful degradation) ──────────────────────────────
+vertex_model = None
+try:
+    import vertexai
+    from vertexai.generative_models import GenerativeModel
+    if GOOGLE_CLOUD_PROJECT:
+        vertexai.init(project=GOOGLE_CLOUD_PROJECT, location="us-central1")
+        vertex_model = GenerativeModel("gemini-1.5-pro")
+        print("✓ Vertex AI connected")
+    else:
+        print("Vertex AI skipped (no GOOGLE_CLOUD_PROJECT set)")
+except Exception as e:
+    print(f"Vertex AI unavailable (demo mode): {e}")
+
 # ── Optional Google Cloud services (graceful degradation) ──────────────────
 db = None
 gcs_bucket_client = None
@@ -300,6 +310,43 @@ async def get_history(user_id: str):
         return JSONResponse({"sessions": sessions})
     except Exception as e:
         return JSONResponse({"sessions": [], "error": str(e)})
+
+
+class ReportRequest(BaseModel):
+    summary: str
+    user_name: str = "User"
+
+
+@app.post("/api/generate-report")
+async def generate_report(req: ReportRequest):
+    """Use Vertex AI (Gemini 1.5 Pro) to produce a structured clinical wellness report."""
+    if not vertex_model:
+        return JSONResponse({
+            "report": None,
+            "note": "Vertex AI not configured — set GOOGLE_CLOUD_PROJECT to enable enhanced reports."
+        })
+    try:
+        prompt = f"""You are a clinical health writer. Below is a raw AI wellness screening transcript for a patient named {req.user_name}.
+
+RAW SCREENING SUMMARY:
+{req.summary}
+
+Please produce a concise, structured **Wellness Report** with the following sections:
+1. **Overall Wellness Tier** — ✅ / 👀 / 🩺 / 🚨 with one sentence explanation
+2. **Findings by Area** — bullet list per body part: finding + significance
+3. **Cross-Pattern Observations** — any multi-area patterns noted
+4. **Recommended Next Steps** — 2-3 specific, actionable items
+5. **Disclaimer** — one line
+
+Keep the tone warm but clinically precise. Use plain language. Maximum 350 words."""
+
+        response = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: vertex_model.generate_content(prompt)
+        )
+        report_text = response.text
+        return JSONResponse({"report": report_text, "model": "gemini-1.5-pro (Vertex AI)"})
+    except Exception as e:
+        return JSONResponse({"report": None, "error": str(e)}, status_code=500)
 
 
 @app.websocket("/ws/{user_id}")
@@ -399,22 +446,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                                     turns=[
                                         types.Content(
                                             parts=[types.Part(text=(
-                                                "Multiple live camera frames have been streaming to you for the last several seconds. "
-                                                "Before you say anything descriptive, take a moment to look at all those frames carefully. "
-                                                "Greet the user warmly as Vita and say 'Give me just a moment to take a good look at you...' "
-                                                "Then PAUSE, review the visual context, and only after that describe what you see. "
-                                                "Base your description ONLY on what is consistently visible across multiple frames — "
-                                                "do NOT guess or answer from memory. "
-                                                "Specifically examine carefully: "
-                                                "1) GLASSES: Look at their face across ALL frames. Are there glasses frames, lenses, or nose pads visible? "
-                                                "Check every frame — glasses are easy to miss at first. If yes, say so. Do NOT default to 'no glasses' unless you are certain across multiple frames. "
-                                                "2) Hair: actual color and length you observe (short/medium/long). "
-                                                "3) Age: your best estimate from visible features. "
-                                                "4) Skin tone: what you actually see. "
-                                                "5) Any other clearly visible details (facial hair, earrings, clothing color). "
-                                                "If you are unsure about any attribute, say so honestly. "
-                                                "Ask: 'Does that sound right?' and wait for confirmation. "
-                                                "Do NOT begin any body part examination yet."
+                                                "Greet the user briefly and warmly as Vita, then ask: 'Can I analyze you today?' "
+                                                "Nothing else — just greet and ask that one question. Wait for their response."
                                             ))],
                                             role="user",
                                         )
@@ -511,67 +544,122 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                             except Exception as e:
                                 print(f"glasses_check send error: {e}")
 
+                        elif msg_type == "consent_confirm":
+                            try:
+                                await gemini.send_client_content(
+                                    turns=[types.Content(parts=[types.Part(text=(
+                                        "The user confirmed with a thumbs up. "
+                                        "Look at the camera frames right now. "
+                                        "Give ONE short sentence — just the 2 or 3 most obvious things you can see "
+                                        "(e.g. glasses or no glasses, hair color, rough age). "
+                                        "Keep it to 1-2 sentences maximum. Then ask 'Does that look about right?' "
+                                        "Do NOT write a paragraph. Do NOT list every feature you see."
+                                    ))], role="user")],
+                                    turn_complete=True,
+                                )
+                            except Exception as e:
+                                print(f"consent_confirm error: {e}")
+
+                        elif msg_type == "consent_decline":
+                            try:
+                                await gemini.send_client_content(
+                                    turns=[types.Content(parts=[types.Part(text=(
+                                        "The user declined by holding a thumbs down. "
+                                        "Acknowledge their choice warmly. Let them know they can come back whenever they're ready."
+                                    ))], role="user")],
+                                    turn_complete=True,
+                                )
+                            except Exception as e:
+                                print(f"consent_decline error: {e}")
+
                         elif msg_type == "step_ready":
                             body_part = msg.get("body_part", "unknown")
                             look_prompts = {
                                 "eyes": (
-                                    "The user has just positioned their face in front of the camera for the eye examination. "
-                                    "Fresh camera frames are being sent RIGHT NOW. Look at the current frame immediately. "
-                                    "Do NOT speak from memory or assumption. "
-                                    "Describe exactly what you see: sclera color (pure white, yellowish, or red?), "
-                                    "iris color and clarity, pupil size and whether both look equal, "
-                                    "eyelid condition (any swelling, drooping, or crusting?), "
-                                    "and the color of the under-eye area (blue-purple, brown, or normal?). "
-                                    "Be specific — name the actual colors and features visible in this frame right now."
+                                    "STOP. Do not say anything yet. "
+                                    "Look at the camera frames being sent to you right now. "
+                                    "Your first sentence MUST be: 'Looking at your eyes right now, I can see that your sclera is [exact color you see].' "
+                                    "Only use colors you can actually see — do not say 'white' if you haven't confirmed it. "
+                                    "After stating the sclera color, continue describing: "
+                                    "iris color (name the actual hue), whether both pupils look equal in size, "
+                                    "eyelid condition (any visible swelling, drooping, crust, or flakes?), "
+                                    "and the under-eye area color (blue-purple, brown, cream, or something else?). "
+                                    "If anything is unclear or out of frame, say so explicitly — do not fill in from memory. "
+                                    "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your eyes? I'm happy to look more closely at anything.' "
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
                                 ),
                                 "nails": (
-                                    "The user has just held their hands up to the camera for nail examination. "
-                                    "Fresh camera frames are being sent RIGHT NOW. Look at the current frame immediately. "
-                                    "Do NOT speak from memory. "
-                                    "Describe what you actually see: nail plate color (translucent pink, white patches, yellow-brown?), "
-                                    "nail bed color (pink, pale, bluish?), whether you can see the white lunula at the base, "
-                                    "surface texture (smooth, pitted, ridged?), curvature, and cuticle condition. "
-                                    "Go finger by finger if you can see them clearly."
+                                    "STOP. Do not say anything yet. "
+                                    "Look at the hands in the current camera frames. "
+                                    "Your first sentence MUST be: 'Looking at your nails right now, the nail plates appear [exact color/appearance you see].' "
+                                    "Only describe colors you can actually confirm. "
+                                    "Then continue: nail bed color (the skin under the nail — pink, pale, or bluish?), "
+                                    "can you see the white lunula at the base of any finger?, "
+                                    "surface texture (smooth, dented, ridged?), curvature of the nails, cuticle condition. "
+                                    "Call out any nail that looks different from the others. "
+                                    "If the hands are unclear or lighting is bad, say so — do not guess. "
+                                    "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your nails? I can look at any individual finger more closely.' "
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
                                 ),
                                 "tongue": (
-                                    "The user has just stuck their tongue out in front of the camera. "
-                                    "Fresh camera frames are being sent RIGHT NOW. Look at the current frame immediately. "
-                                    "Do NOT describe what a tongue typically looks like — describe this person's tongue. "
-                                    "What exact color do you see (pink, red, pale, purple, white-coated, yellow-coated)? "
-                                    "Is there a coating, and where (tip, middle, back)? "
-                                    "What does the texture look like (bumpy papillae, smooth and shiny)? "
-                                    "Any scalloped edges, sores, or tremor? Cite the specific colors you observe right now."
+                                    "STOP. Do not say anything yet. "
+                                    "Look at the tongue in the current camera frames. "
+                                    "Your first sentence MUST be: 'Looking at your tongue right now, the color I can see is [exact color/shade].' "
+                                    "Then describe: is there a coating, and what color and where (tip, middle, back)? "
+                                    "Texture — can you see bumpy papillae, or is it smooth and shiny? "
+                                    "Are the edges scalloped (wavy impressions from teeth)? "
+                                    "Any visible sores, patches, or tremor when extended? "
+                                    "Every detail must come from what you can see in this frame — not from clinical memory. "
+                                    "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your tongue? I can examine any area more carefully.' "
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
                                 ),
                                 "teeth": (
-                                    "The user is showing their teeth and gums to the camera right now. "
-                                    "Fresh camera frames are being sent. Look at the current frame immediately. "
-                                    "Describe what you actually see: gum color (coral-pink, pale, bright red, dark purple-red?), "
-                                    "any swelling or recession at the gum margin, "
-                                    "teeth color (white-cream, yellow, grey, brown spots?), "
-                                    "and any enamel issues visible. Be specific about what is currently in the frame."
+                                    "STOP. Do not say anything yet. "
+                                    "Look at the teeth and gums in the current camera frames. "
+                                    "Your first sentence MUST be: 'Looking at your gums right now, they appear [exact color you see].' "
+                                    "Then describe: any swelling, recession, or puffiness at the gum margin? "
+                                    "Teeth color — what specific shade do you actually see (white-cream, off-white, yellow, grey)? "
+                                    "Any visible brown or black spots on individual teeth? "
+                                    "Any visible enamel notching or erosion? "
+                                    "Only describe what is in frame — do not fill in unseen areas from assumption. "
+                                    "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your teeth and gums? I can focus on any particular area.' "
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
                                 ),
                                 "skin": (
-                                    "The user is showing their skin to the camera right now. "
-                                    "Fresh camera frames are being sent. Look at the current frame immediately. "
-                                    "Describe what you actually see on their hands and face: "
-                                    "overall skin tone and undertone, any visible spots, moles, redness, dryness, "
-                                    "unusual pigmentation, or texture differences. "
-                                    "For the face: any butterfly rash, puffiness, periorbital darkening, oiliness? "
-                                    "Describe only what is currently visible — do not assume."
+                                    "STOP. Do not say anything yet. "
+                                    "Look at the skin in the current camera frames. "
+                                    "Your first sentence MUST be: 'Looking at your skin right now, the overall tone I can see is [exact tone/color].' "
+                                    "Then describe what is actually visible: "
+                                    "backs of hands — any spots, moles, redness, dryness, unusual pigmentation? "
+                                    "Palms — palmar crease color (pink, pale, very pale/white?), any redness or thickening? "
+                                    "Face — any redness, butterfly pattern across nose/cheeks, puffiness, visible pores, pigment differences? "
+                                    "Describe only what you can actually see in these frames. "
+                                    "After covering all features, ask: 'Do you have any specific questions about what I've just observed with your skin? I can take a closer look at any area.' "
+                                    "Wait for their response, answer any follow-up questions by looking at the camera again, then say 'Analysis complete. Moving on.'"
                                 ),
                             }
                             prompt = look_prompts.get(
                                 body_part,
-                                f"The user is ready for {body_part} examination. Fresh camera frames are being sent right now. "
-                                f"Look at the current frame and describe exactly what you see."
+                                f"STOP. Look at the current camera frames. "
+                                f"Your first sentence must name a specific visual detail you can actually see right now about {body_part}. "
+                                f"Then describe everything else you observe."
                             )
-                            try:
-                                await gemini.send_client_content(
-                                    turns=[types.Content(parts=[types.Part(text=prompt)], role="user")],
-                                    turn_complete=True,
-                                )
-                            except Exception as e:
-                                print(f"step_ready send error: {e}")
+                            # Send 5 fresh frames before the prompt so Gemini has very recent visual context
+                            async def _fire_step(p=prompt):
+                                for _ in range(5):
+                                    await asyncio.sleep(0.2)
+                                    if last_frame:
+                                        await gemini.send_realtime_input(
+                                            video=types.Blob(data=last_frame, mime_type="image/jpeg")
+                                        )
+                                try:
+                                    await gemini.send_client_content(
+                                        turns=[types.Content(parts=[types.Part(text=p)], role="user")],
+                                        turn_complete=True,
+                                    )
+                                except Exception as e:
+                                    print(f"step_ready send error: {e}")
+                            asyncio.create_task(_fire_step())
 
                         elif msg_type == "end_session":
                             session_data["summary"] = msg.get("summary", "")

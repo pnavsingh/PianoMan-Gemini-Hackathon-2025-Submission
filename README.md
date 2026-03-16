@@ -2,22 +2,24 @@
 
 > **Hackathon Demo** · Built with Gemini Live API + Google Cloud
 
-Vita is a real-time AI health screening assistant that guides users through a visual wellness check-in via their webcam. Using the **Gemini 2.5 Flash Native Audio** model, Vita speaks to you (or responds to text), analyzes what she sees through the live camera feed, and tracks changes across sessions.
+Vita is a real-time AI health screening assistant that guides users through a visual wellness check-in via their webcam. Using the **Gemini 2.5 Flash Native Audio** model, Vita speaks, listens, and analyzes what she sees through the live camera feed.
 
 ---
 
 ## Demo Flow
 
 1. Open the app and enter your name
-2. Hold a **thumbs-up** to trigger Vita's greeting (or wait 15s for auto-start)
-3. Vita **looks at the current camera frame** and describes what she sees (hair color, age, skin tone, glasses) — you verify before anything starts
-4. If you're wearing glasses, Vita **stops and auto-polls** every 3 seconds until she confirms they're removed from frame — no button tap needed
-5. Vita walks you through **5 visual checks one at a time** via a step wizard: Eyes → Nails → Tongue → Teeth & Gums → Skin
-6. For each step, tap **"I'm Ready"** — Vita injects an explicit "look NOW" prompt so she examines the live frame rather than speaking from memory
-7. The UI shows a **CV-style scanning overlay** with real MediaPipe face/hand landmark highlights (green ellipses on eyes, gold box on mouth, blue face oval for skin, green ellipses on fingernails)
-8. Each step auto-completes when Vita says "analysis complete" — no manual advancement needed
-9. At the end she delivers a detailed wellness summary with **cross-body-part pattern recognition** and **severity tiers** (✅ / 👀 / 🩺 / 🚨)
-10. Return users get a comparison to their previous session
+2. An **intro card** shows while the camera warms up (3 seconds)
+3. Once ready, a **thumbs-up card** appears — hold 👍 for ~1 second to trigger Vita
+4. Vita greets you and asks **"Can I analyze you today?"**
+5. Show 👍 (yes) or 👎 (no) using the **consent gesture card** with dual progress rings
+6. After consent, Vita gives a **brief 1-2 sentence check** ("I can see dark hair and glasses — late twenties?") and asks you to confirm
+7. You confirm verbally or via text → Vita starts the 5-step scan wizard
+8. If glasses are detected during the **eye step**, Vita stops and auto-polls every 3 seconds until she confirms they're removed from frame
+9. For each step, tap **"I'm Ready"** — 5 fresh frames are sent to Gemini right before the prompt fires, plus a forced first-sentence anchor ("Looking at your sclera right now, I can see...")
+10. Each step auto-completes when Vita says "analysis complete"
+11. A **pull-out transcript drawer** in the header shows full conversation history
+12. At the end, Vita delivers a wellness summary with **cross-body-part pattern recognition** and **severity tiers** (✅ / 👀 / 🩺 / 🚨)
 
 ---
 
@@ -25,7 +27,7 @@ Vita is a real-time AI health screening assistant that guides users through a vi
 
 ```
 Browser (WebRTC mic + webcam)
-        │  WebSocket (audio PCM 16kHz + JPEG frames 640x360 / 1280x720)
+        │  WebSocket (audio PCM 16kHz + JPEG frames)
         ▼
 FastAPI Server (Python)
         │  Gemini Live API (bidirectional streaming)
@@ -37,7 +39,7 @@ gemini-2.5-flash-native-audio-preview-12-2025
 
 Browser (client-side ML):
   MediaPipe FaceLandmarker ── 478-point face landmarks for eye/mouth/face highlights
-  MediaPipe HandLandmarker ── finger/knuckle landmarks for nail highlights + thumbs-up detection
+  MediaPipe HandLandmarker ── landmarks for thumbs-up / thumbs-down gesture detection
 
 Side storage (optional):
   Firestore  ── session history & summaries
@@ -121,130 +123,135 @@ gcloud run deploy vita \
 
 The backend maintains a **persistent bidirectional stream** with Gemini for each user session:
 
-- **Audio in**: Browser captures 16kHz PCM from mic → energy-gated → base64 → WebSocket → `send_realtime_input(audio=...)`
-- **Video in**: Browser captures JPEG frames at 3fps (333ms interval) idle, 4fps (250ms) during active scan → `send_realtime_input(video=...)`
-- **Audio out**: Gemini returns 24kHz PCM chunks → browser queues and plays sequentially via Web Audio API; `nextPlayTime` is reset to 0 on interruption so the next response plays immediately
+- **Audio in**: Browser captures 16kHz PCM from mic → sent continuously (no energy gate, so Gemini's VAD can detect end-of-speech) → base64 → WebSocket → `send_realtime_input(audio=...)`
+- **Video in**: Browser captures JPEG frames at ~3fps (333ms) idle, ~4fps (250ms) during active scan → `send_realtime_input(video=...)`
+- **Audio out**: Gemini returns 24kHz PCM chunks → browser queues and plays sequentially via Web Audio API; `nextPlayTime` reset to 0 on interruption
 - **Transcript**: `output_audio_transcription` config enables real-time text alongside speech
-- **Interruption**: User speaking mid-response triggers Gemini's VAD; `sc.interrupted` signals the UI to reset the audio queue and transcript buffer
+- **Interruption**: User speech triggers Gemini's VAD; `sc.interrupted` signals the UI to reset audio queue. Because audio (including silence) is sent continuously, Gemini's VAD correctly detects turn end and resumes after interruption
 - **Text input**: Typed messages forwarded as `send_client_content(turn_complete=True)` — full dual input support
 
-The `receive()` iterator ends after each turn; the backend wraps it in a `while` loop with a `0.01s` yield to keep the session alive without spinning the CPU.
+The `receive()` iterator ends after each turn; the backend wraps it in a `while` loop with a `0.01s` yield to keep the session alive.
 
 ### Frame resolution
 - **Idle / greeting phase**: 640×360 @ 80% JPEG quality
-- **Active body part scan**: 1280×720 @ 92% JPEG quality — switched automatically when `cvScanning` is true
+- **Active body part scan**: 1280×720 @ 92% JPEG quality
 
 ### Video mirroring
-The `<video>` element has CSS `transform: scaleX(-1)` for a natural mirror view. Canvas frame captures apply `ctx.scale(-1, 1)` so the frames sent to Gemini match what the user sees. MediaPipe landmark x-coordinates are mirrored (`canvasX = width - landmark.x * width`) for the same reason.
+The `<video>` element has CSS `transform: scaleX(-1)` for a natural mirror view. Canvas frame captures apply `ctx.scale(-1, 1)` so frames sent to Gemini match what the user sees. MediaPipe landmark x-coordinates are mirrored (`canvasX = width - landmark.x * width`).
 
 ---
 
 ## Anti-Hallucination Design
 
-A core challenge with the Live API is that Gemini may describe a person from memory/context rather than from the current frame. Vita addresses this with a three-layer approach:
+Gemini can describe a person from memory rather than from the current frame. Vita addresses this with multiple layers:
 
-### 1. Deferred greeting (thumbs-up trigger)
-The greeting is not fired on WebSocket connect. Instead, frames stream silently until the user holds a thumbs-up for 900ms (SVG progress ring confirms hold). This guarantees multiple frames are in the model's buffer before Vita speaks. A 15-second fallback fires if the user doesn't gesture.
+### 1. Camera warm-up + intro card
+An intro card shows for ~3 seconds after WebSocket connects before the thumbs-up card appears. This lets the camera auto-expose and settle before any gesture is detected.
 
-### 2. Explicit `step_ready` turns
-When the user taps "I'm Ready" for a step, the backend sends an explicit `send_client_content` turn with per-body-part instructions: `"Look at the current frame RIGHT NOW. Do NOT speak from memory."` Each prompt specifies exactly what to observe (sclera color, pupil equality, nail color/texture, etc.).
+### 2. Consent-gated description (two-step thumbs flow)
+- First thumbs-up → Vita greets and asks "Can I analyze you today?" — no description yet
+- 12 frames are sent over 3.6 seconds before the greeting prompt fires
+- User shows 👍 or 👎 on the consent card → only after consent does Vita attempt a visual description
+- By this point, Gemini has been watching for 10-15+ seconds — enough context for accurate recognition
+- The description is intentionally brief (1-2 sentences) to reduce hallucination surface
 
-### 3. Glasses auto-polling
-During the eye step, Vita checks for glasses every 3 seconds via a `glasses_check` message → backend injects a "look at the face now, are glasses still present?" turn. Transcript keyword detection (sclera/iris/pupil phrases = glasses gone; "please remove" = still present) auto-dismisses the banner without any user button tap.
+### 3. Forced first-sentence anchor on each step
+When the user taps "I'm Ready", the backend:
+1. Sends 5 fresh frames over 1 second before the text prompt
+2. Fires a prompt that mandates a specific opening: `"Your first sentence MUST be: 'Looking at your [body part] right now, I can see that [specific color/feature]...'"` — this forces visual grounding before any generic clinical text
+
+### 4. Glasses auto-polling
+During the eye step, Vita checks for glasses every 3 seconds via a `glasses_check` message. Transcript keyword detection auto-dismisses the banner when glasses are confirmed gone.
+
+---
+
+## Greeting & Consent Flow (detailed)
+
+```
+ws.onopen
+  └─ intro card shown (2.5s camera warm-up)
+       └─ intro card fades → thumbs-up card appears
+            └─ user holds 👍 for 900ms
+                 └─ triggerGreetingScan()
+                      └─ sends start_greeting to backend
+                           └─ _fire_greeting():
+                                ├─ sends 12 frames over 3.6s
+                                └─ sends prompt: "greet + ask 'Can I analyze you today?'"
+                                     └─ turn_complete → consent card shown (👍/👎 rings)
+                                          ├─ user holds 👍 → consent_confirm sent
+                                          │    └─ Gemini gives brief 1-2 sentence description
+                                          │         └─ turn_complete → "Begin Examination" button
+                                          └─ user holds 👎 → consent_decline sent
+                                               └─ Gemini acknowledges gracefully
+```
+
+---
+
+## UI Components
+
+### Intro card
+Shown on app load during camera warm-up. Status dot turns green when camera is ready, then fades into the thumbs-up card.
+
+### Consent gesture card
+Appears after Vita asks for consent. Two SVG progress rings (green 👍, red 👎) fill as the gesture is held. Detecting both independently with `isThumbsUp()` and `isThumbsDown()` (MediaPipe hand landmarks).
+
+### Heart loading animation
+Replaces typing dots during Gemini's "thinking" phase. An SVG heart fills from bottom to top using `clip-path` + CSS `scaleY` animation on a gradient fill rectangle. Shown in the greeting bubble and scanning state; hides when text starts flowing.
+
+### Transcript drawer
+A 390px panel that slides in from the right edge of the screen. Toggle via the "Transcript" button in the header. Shows completed Vita turns and user messages as chat bubbles. Displays an unread badge when new messages arrive while closed. All state resets on session end.
+
+### Step wizard
+Two-column layout (camera left, wizard right). State machine:
+```
+wizardPhase: 'greeting' → 'steps' → 'summary'
+greetingSubPhase: 'consent' → 'description'
+currentStepIdx: -1 → 0..4
+stepIsScanning: false / true
+```
 
 ---
 
 ## CV Overlay & Landmark Highlights
 
-When Vita begins examining a body part, the UI activates:
+When Vita begins examining a body part:
 
-1. **Scan overlay** — dashed detection bounding box, animated horizontal scan line, frame counter, pulsing confidence bar
-2. **Landmark highlights** — drawn on top using real MediaPipe detections:
-   - **Eyes** → green glowing ellipses around each eye contour (landmarks 33–246, 362–398)
-   - **Tongue / Teeth** → gold rounded box around mouth (landmarks 61–375)
-   - **Skin** → blue glowing face oval silhouette (36-point face oval)
-   - **Nails** → green ellipses around each fingertip relative to knuckle position
-3. **Video zoom** — subtle `scale(1.04)` on the video element with a smooth CSS transition
-
-Hand detection always runs (needed for thumbs-up detection). MediaPipe loads from CDN (`@mediapipe/tasks-vision@0.10.3`) as an ES module. If it fails, the scan overlay still works — landmark highlights degrade gracefully.
-
----
-
-## Step Wizard UI
-
-The frontend uses a **two-column layout** (camera panel left, wizard panel right) and a state machine:
-
-```
-wizardPhase: 'greeting' → 'steps' → 'summary'
-currentStepIdx: -1 → 0..4
-stepIsScanning: false / true
-```
-
-**Steps**: Eyes → Nails → Tongue → Teeth & Gums → Skin
-
-Each step card shows:
-- Positioning instructions with tips
-- "I'm Ready" button → sends `step_ready` + activates CV overlay
-- Auto-completion when Vita says "analysis complete" (detected via transcript, 2.5s debounce)
-- Result card appended to results area on completion
+1. **Scan overlay** — dashed detection bounding box, animated scan line, corner brackets
+2. **Landmark highlights** (MediaPipe):
+   - **Eyes** → green glowing ellipses around each eye contour
+   - **Tongue / Teeth** → gold rounded box around mouth region
+   - **Skin** → blue glowing face oval silhouette
+   - **Nails** → green ellipses around each fingertip relative to knuckle
+3. **Video zoom** — subtle `scale(1.04)` CSS transition on the video element
 
 ---
 
 ## Clinical Reference & Pattern Recognition
 
-The system prompt includes baked-in clinical reference tables covering:
+The system prompt includes baked-in clinical reference covering:
 
-- **Eyes**: sclera color, pupil equality, conjunctiva pallor, iris arcus
-- **Nails**: color bands, pitting, clubbing, koilonychia, Mees'/Muehrcke's/Lindsay's lines
-- **Tongue**: coating color, surface texture, fissuring, geographic tongue, glossitis
-- **Teeth & Gums**: gum color, recession, bleeding, enamel erosion, bruxism wear
-- **Skin**: pallor distribution, jaundice, cyanosis, rashes, mole irregularity
+- **Eyes**: sclera color, pupil equality, conjunctiva pallor, iris arcus, under-eye color
+- **Nails**: color, pitting, clubbing, koilonychia, Beau's lines, lunula, leukonychia
+- **Tongue**: coating color/location, glossitis, geographic tongue, scalloping, tremor
+- **Teeth & Gums**: gum color, recession, gingivitis/periodontitis, enamel erosion, caries
+- **Skin**: pallor, jaundice, malar rash, acanthosis nigricans, ABCDE moles, petechiae
 
-**Cross-body-part patterns** — Vita flags these explicitly:
+**Cross-body-part patterns** flagged explicitly:
 - Pale nails + pale gums + pale tongue + pale conjunctiva → anemia signal
-- Yellow sclera + yellow skin tone + dark urine mention → liver/bilirubin flag
-- Nail pitting + skin plaques + joint mention → psoriasis triad
-- Dry skin + brittle nails + puffy face + slow speech → thyroid pattern
-- …and more
+- Yellow sclera + yellow tongue coating + yellowish skin → liver/biliary concern
+- Nail pitting + skin plaques → psoriasis triad
+- Dry skin + brittle nails + scalloped tongue → thyroid pattern
 
 **Severity tiers**: ✅ All clear | 👀 Worth monitoring | 🩺 See a doctor | 🚨 See a doctor soon
 
 ---
 
-## Dual Input (Voice + Text)
-
-For public or quiet environments, Vita supports fully text-based interaction:
-
-- **Mic toggle** button mutes/unmutes the microphone (audio capture continues, energy gate blocks transmission)
-- **Text input bar** at the bottom — type a message and press Enter or Send
-- Text is forwarded as `send_client_content` to Gemini and displayed as a user chat bubble
-- Vita's spoken response is always transcribed and shown in the chat panel regardless of input mode
-
----
-
-## Session Behavior & Prompt Design
-
-### Opening calibration
-Vita's greeting prompt explicitly asks her to check for glasses ("Do NOT default to 'no glasses'"), hair color and length, apparent age, and skin tone — and asks the user to confirm before any examination begins.
-
-### Glasses gate
-Before the eye exam, if glasses are detected Vita hard-stops. The UI shows a "Remove glasses" banner. Vita auto-polls every 3 seconds until she confirms glasses are gone from the live frame, then continues automatically.
-
-### Examination pacing (ABSOLUTE RULES in system prompt)
-- Only describes what is **currently visible** in the frame — never pre-generates findings
-- Completes one body part **100% before** mentioning the next
-- Gives positioning instructions → stops talking → waits → then narrates
-- Must explain **why** something looks healthy (specific color/texture/feature) — never defaults to vague positives
-- If unclear: asks for adjustment rather than guessing
-
----
-
 ## Known Behaviours / Notes
 
-- **No `TURN_INCLUDES_ALL_INPUT`**: Removed. It caused Gemini to race through the protocol from memory rather than waiting to actually see each body part. Explicit `step_ready` turns + deferred greeting replace this.
-- **Audio context cleanup**: All Web Audio nodes (`AudioContext`, `ScriptProcessor`) are properly closed and nulled on session end so reconnecting doesn't create duplicate pipelines.
-- **Session state reset**: On `endSession()`, all state is fully reset including `vitaBubble`, `vitaBuffer`, `currentBodyPart`, step wizard state, checklist icons, and the CV overlay.
-- **Frame buffer race condition**: Fixed by moving from a timed delay (previously 500ms → 1500ms → 3500ms, all insufficient) to gesture-gated greeting, ensuring frames are provably buffered before Gemini speaks.
+- **No energy gate on mic**: Removed. The original gate (`energy < 0.000001`) caused Gemini's VAD to hang after interruptions because it never received silence frames to detect turn end. Audio is now sent continuously; echo cancellation (enabled on mic constraints) handles Vita's own voice.
+- **Interrupt behavior**: After an interrupted event, Gemini re-enters listen mode. Because mic audio (including silence) always flows, VAD correctly detects when the user finishes speaking and generates a new response automatically.
+- **Audio context cleanup**: All Web Audio nodes are properly closed and nulled on session end.
+- **Session state reset**: `endSession()` resets all state including consent phase, greeting sub-phase, drawer history, and CV overlay.
 
 ---
 
