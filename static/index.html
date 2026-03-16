@@ -1,0 +1,2323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vita — AI Health Screening</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #000000;
+      --surface: #080808;
+      --card: rgba(255,255,255,0.03);
+      --card-hover: rgba(255,255,255,0.055);
+      --border: rgba(255,255,255,0.08);
+      --border-light: rgba(255,255,255,0.15);
+      --accent: #0099ff;
+      --accent-dim: rgba(0,153,255,0.1);
+      --accent2: #00d4ff;
+      --text: #ffffff;
+      --text-muted: rgba(255,255,255,0.38);
+      --text-dim: rgba(255,255,255,0.62);
+      --danger: #ff4040;
+      --warn: #ffaa00;
+      --good: #00cc88;
+      --good-dim: rgba(0,204,136,0.1);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-pill: 9999px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 15px 28px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      color: var(--text);
+    }
+    .logo-dot { color: var(--accent); }
+    .tagline { color: var(--text-muted); font-size: 0.76rem; letter-spacing: 0.1px; font-weight: 400; }
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge-medical {
+      background: rgba(255,64,64,0.07);
+      border: 1px solid rgba(255,64,64,0.16);
+      color: rgba(255,120,120,0.85);
+      font-size: 0.67rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    /* ── Login ───────────────────────────────────────────────── */
+    #login-screen {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      background: radial-gradient(ellipse 80% 55% at 50% 0%, rgba(0,153,255,0.07) 0%, transparent 70%);
+    }
+    .login-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 52px 44px;
+      width: 420px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+    .login-icon {
+      width: 64px; height: 64px;
+      background: rgba(0,153,255,0.09);
+      border: 1px solid rgba(0,153,255,0.18);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 28px;
+      font-size: 1.7rem;
+    }
+    .login-card h2 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.6px;
+      margin-bottom: 10px;
+    }
+    .login-card p { color: var(--text-muted); margin-bottom: 32px; font-size: 0.88rem; line-height: 1.75; font-weight: 400; }
+    input[type="text"] {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 13px 18px;
+      border-radius: var(--radius-pill);
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      margin-bottom: 12px;
+    }
+    input[type="text"]::placeholder { color: var(--text-muted); }
+    input[type="text"]:focus {
+      border-color: rgba(0,153,255,0.4);
+      box-shadow: 0 0 0 4px rgba(0,153,255,0.06);
+      background: rgba(255,255,255,0.055);
+    }
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 13px 24px;
+      border: none;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s;
+      width: 100%;
+      letter-spacing: 0.1px;
+      font-family: inherit;
+    }
+    .btn:hover { opacity: 0.85; box-shadow: 0 4px 24px rgba(0,153,255,0.28); }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.22; cursor: not-allowed; box-shadow: none; }
+    .btn-secondary {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .btn-secondary:hover { border-color: var(--border-light); background: rgba(255,255,255,0.08); opacity: 1; box-shadow: none; }
+    .btn-danger { background: var(--danger); color: white; }
+    .login-note { margin-top: 18px; font-size: 0.72rem; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── App layout ──────────────────────────────────────────── */
+    #app-screen {
+      flex: 1;
+      display: none;
+      grid-template-columns: 1fr 420px;
+      height: calc(100vh - 53px);
+      overflow: hidden;
+    }
+    #app-screen.visible { display: grid; }
+
+    /* ── Camera panel (left) ─────────────────────────────────── */
+    .camera-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 18px;
+      gap: 12px;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .camera-container {
+      position: relative;
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      flex: 1;
+      min-height: 0;
+    }
+    #video {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      transform: scaleX(-1);
+      transition: transform 0.5s ease;
+    }
+    #video.scanning { transform: scaleX(-1) scale(1.04); }
+    #cv-overlay {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none; z-index: 10;
+    }
+    .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: scan 2.5s linear infinite;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .scan-line.active { opacity: 1; }
+    @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+    .corner {
+      position: absolute; width: 20px; height: 20px;
+      border-color: var(--accent); border-style: solid; opacity: 0.5;
+    }
+    .corner.tl { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+    .corner.tr { top: 10px; right: 10px; border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+    .cam-status-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      padding: 28px 14px 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .rec-dot {
+      width: 8px; height: 8px;
+      background: var(--danger); border-radius: 50%;
+      animation: blink 1.2s ease-in-out infinite; display: none;
+    }
+    .rec-dot.active { display: block; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    #cam-status-text { font-size: 0.78rem; color: rgba(255,255,255,0.8); }
+
+    /* Controls row */
+    .controls {
+      display: flex; gap: 8px;
+    }
+    .control-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 9px 12px; border-radius: var(--radius-pill);
+      cursor: pointer; font-size: 0.78rem; font-family: inherit;
+      transition: all 0.2s; font-weight: 500;
+    }
+    .control-btn:hover { border-color: var(--border-light); color: var(--text); background: rgba(255,255,255,0.07); }
+    .control-btn.active { background: rgba(0,153,255,0.1); border-color: rgba(0,153,255,0.25); color: var(--accent); }
+    .control-btn.muted { background: rgba(255,64,64,0.07); border-color: rgba(255,64,64,0.22); color: var(--danger); }
+    .control-btn svg { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0; }
+
+    /* Audio viz */
+    #audio-viz {
+      display: flex; align-items: flex-end; gap: 2px;
+      height: 22px; padding: 0 2px;
+    }
+    #audio-viz .bar {
+      width: 3px; background: var(--accent); border-radius: 2px;
+      transition: height 0.06s; min-height: 2px; opacity: 0.7;
+    }
+
+    /* ── Wizard panel (right) ────────────────────────────────── */
+    .wizard-panel {
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      overflow: hidden;
+      border-left: 1px solid var(--border);
+    }
+
+    /* Step nav */
+    .step-nav {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 0;
+      flex-shrink: 0;
+      background: var(--surface);
+    }
+    .step-nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      position: relative; gap: 6px; cursor: default;
+    }
+    .step-nav-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 13px; left: 60%; right: -40%;
+      height: 1px; background: var(--border);
+      z-index: 0;
+      transition: background 0.3s;
+    }
+    .step-nav-item.done:not(:last-child)::after { background: var(--accent); opacity: 0.4; }
+    .step-dot {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-muted);
+      font-size: 0.7rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s; z-index: 1; position: relative;
+    }
+    .step-nav-item.active .step-dot {
+      border-color: var(--accent);
+      background: rgba(0,153,255,0.1);
+      color: var(--accent);
+    }
+    .step-nav-item.done .step-dot {
+      border-color: var(--good);
+      background: rgba(0,204,136,0.1);
+      color: var(--good);
+    }
+    .step-dot-label {
+      font-size: 0.62rem; color: var(--text-muted); text-align: center;
+      transition: color 0.3s; white-space: nowrap; font-weight: 500;
+    }
+    .step-nav-item.active .step-dot-label { color: var(--accent); }
+    .step-nav-item.done .step-dot-label { color: var(--good); }
+
+    /* Wizard scrollable content */
+    .wizard-scroll {
+      flex: 1; overflow-y: auto; padding: 18px;
+      display: flex; flex-direction: column; gap: 14px;
+      scroll-behavior: smooth;
+    }
+    .wizard-scroll::-webkit-scrollbar { width: 3px; }
+    .wizard-scroll::-webkit-scrollbar-track { background: transparent; }
+    .wizard-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    /* ── Phase: Greeting ─────────────────────────────────────── */
+    #phase-greeting { display: flex; flex-direction: column; gap: 14px; }
+    .greeting-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+    }
+    .vita-avatar {
+      width: 34px; height: 34px;
+      background: rgba(0,153,255,0.12);
+      border: 1px solid rgba(0,153,255,0.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700; color: var(--accent);
+      flex-shrink: 0;
+    }
+    .vita-name { font-weight: 600; font-size: 0.88rem; }
+    .vita-subtitle { font-size: 0.72rem; color: var(--text-muted); }
+
+    .vita-bubble-wrap {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 4px var(--radius) var(--radius) var(--radius);
+      padding: 14px 16px;
+      font-size: 0.87rem; line-height: 1.75;
+      color: var(--text-dim);
+      min-height: 60px;
+    }
+    .typing-dots { display: flex; gap: 4px; padding: 6px 0; }
+    .typing-dots span {
+      width: 5px; height: 5px; background: var(--accent);
+      border-radius: 50%; animation: td 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes td { 0%,80%,100% { transform:scale(0.6); opacity:0.25; } 40% { transform:scale(1); opacity:1; } }
+
+    .begin-btn-wrap { margin-top: 4px; }
+    #begin-btn { display: none; width: 100%; }
+
+    /* ── Phase: Step instructions ────────────────────────────── */
+    #phase-step { display: none; flex-direction: column; gap: 0; }
+    .step-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .step-card-header {
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .step-card-title {
+      font-size: 1.05rem; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .step-counter {
+      font-size: 0.7rem; font-weight: 600; color: var(--text-muted);
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: var(--radius-pill);
+    }
+    .step-card-body { padding: 16px 18px; }
+    .instructions-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .instruction-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 0.85rem; line-height: 1.55; color: var(--text-muted);
+    }
+    .instruction-item .inst-icon {
+      width: 20px; height: 20px;
+      background: rgba(0,153,255,0.08); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .instruction-item .inst-icon svg {
+      width: 11px; height: 11px; fill: var(--accent);
+    }
+    .step-hint {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,170,0,0.05); border: 1px solid rgba(255,170,0,0.14);
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      font-size: 0.79rem; color: rgba(255,200,80,0.9); margin-bottom: 16px;
+    }
+    .step-hint svg { width: 13px; height: 13px; fill: rgba(255,200,80,0.9); flex-shrink: 0; }
+    #ready-btn { width: 100%; font-size: 0.9rem; padding: 13px; }
+
+    /* ── Scanning state ──────────────────────────────────────── */
+    #scanning-state { display: none; flex-direction: column; gap: 12px; }
+    .scanning-indicator {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px;
+      background: rgba(0,153,255,0.07); border: 1px solid rgba(0,153,255,0.15);
+      border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--accent); font-weight: 500;
+    }
+    .scan-pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      animation: pulse-ring 1.4s ease-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(0,153,255,0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(0,153,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,153,255,0); }
+    }
+    #live-transcript {
+      font-size: 0.84rem; line-height: 1.75; color: var(--text-dim);
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      min-height: 60px;
+    }
+
+    /* ── Result cards ────────────────────────────────────────── */
+    .result-card {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      animation: slideUp 0.35s ease;
+    }
+    @keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .result-card-header {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .result-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+    .result-badge {
+      font-size: 0.68rem; font-weight: 600; padding: 3px 10px; border-radius: var(--radius-pill);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .result-badge.done { background: rgba(0,204,136,0.1); border: 1px solid rgba(0,204,136,0.2); color: var(--good); }
+    .result-text { padding: 12px 16px; font-size: 0.82rem; line-height: 1.75; color: var(--text-muted); }
+
+    /* ── Summary phase ───────────────────────────────────────── */
+    #phase-summary { display: none; flex-direction: column; gap: 14px; }
+    .summary-header-card {
+      background: linear-gradient(135deg, rgba(0,153,255,0.07), rgba(0,212,255,0.04));
+      border: 1px solid rgba(0,153,255,0.14);
+      border-radius: var(--radius); padding: 20px;
+      text-align: center;
+    }
+    .summary-check {
+      width: 46px; height: 46px;
+      background: rgba(0,204,136,0.08); border: 1px solid rgba(0,204,136,0.2); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px;
+    }
+    .summary-check svg { width: 22px; height: 22px; fill: var(--good); }
+    .summary-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.3px; }
+    .summary-sub { font-size: 0.8rem; color: var(--text-muted); }
+    .summary-content-card {
+      background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      font-size: 0.84rem; line-height: 1.85; color: var(--text-dim);
+      white-space: pre-wrap;
+    }
+    .summary-actions { display: flex; gap: 10px; }
+    .summary-actions .btn { padding: 12px; }
+
+    /* ── Thumbs-up scan trigger ──────────────────────────────── */
+    #thumbs-card {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px 20px;
+      text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+    }
+    .thumbs-emoji { font-size: 2.2rem; }
+    .thumbs-title { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.3px; }
+    .thumbs-sub { font-size: 0.8rem; color: var(--text-muted); line-height: 1.7; max-width: 270px; }
+    .thumbs-ring-wrap {
+      position: relative; width: 76px; height: 76px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .thumbs-ring-inner { position: absolute; font-size: 1.6rem; }
+    #thumbs-progress-circle { transition: stroke-dashoffset 0.08s linear; }
+    .thumbs-detected { color: var(--accent); font-size: 0.76rem; font-weight: 500; height: 18px; }
+
+    /* ── Glasses check banner ────────────────────────────────── */
+    #glasses-banner {
+      display: none;
+      background: rgba(255,170,0,0.05); border: 1px solid rgba(255,170,0,0.18);
+      border-radius: var(--radius-sm); padding: 11px 14px;
+      align-items: center; gap: 10px;
+      font-size: 0.8rem; color: rgba(255,200,80,0.9); margin-top: 10px;
+    }
+    #glasses-banner svg { width: 14px; height: 14px; fill: rgba(255,200,80,0.9); flex-shrink: 0; }
+    #glasses-banner button {
+      margin-left: auto; background: rgba(255,170,0,0.08);
+      border: 1px solid rgba(255,170,0,0.2); color: rgba(255,200,80,0.9);
+      padding: 6px 12px; border-radius: var(--radius-pill);
+      cursor: pointer; font-size: 0.76rem; font-weight: 600; font-family: inherit;
+      white-space: nowrap;
+    }
+
+    /* ── Text input bar ─────────────────────────────────────── */
+    .text-input-bar {
+      display: none;
+      align-items: center; gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .text-input-bar.visible { display: flex; }
+    #text-input {
+      flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      color: var(--text); padding: 9px 16px; border-radius: var(--radius-pill);
+      font-size: 0.86rem; font-family: inherit; outline: none;
+      transition: border-color 0.2s;
+    }
+    #text-input:focus { border-color: rgba(0,153,255,0.35); background: rgba(255,255,255,0.055); }
+    #text-input::placeholder { color: var(--text-muted); }
+    .text-send-btn {
+      background: var(--accent); border: none; color: #ffffff;
+      width: 34px; height: 34px; border-radius: 50%;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: opacity 0.2s;
+    }
+    .text-send-btn:hover { opacity: 0.82; }
+    .text-send-btn svg { width: 14px; height: 14px; fill: currentColor; }
+    .text-mode-toggle {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 5px 12px; border-radius: var(--radius-pill); font-size: 0.7rem;
+      cursor: pointer; font-family: inherit; white-space: nowrap;
+      transition: all 0.2s; flex-shrink: 0; font-weight: 500;
+    }
+    .text-mode-toggle:hover { border-color: var(--border-light); color: var(--text); }
+    .text-mode-toggle.muted-mode { background: rgba(255,64,64,0.06); border-color: rgba(255,64,64,0.2); color: var(--danger); }
+
+    /* User text bubble in transcript */
+    .user-text-msg {
+      display: flex; justify-content: flex-end; margin: 4px 0;
+      animation: slideUp 0.25s ease;
+    }
+    .user-text-bubble {
+      background: rgba(0,153,255,0.08); border: 1px solid rgba(0,153,255,0.16);
+      border-radius: var(--radius) var(--radius) 4px var(--radius);
+      padding: 8px 12px; font-size: 0.83rem; max-width: 80%; color: var(--text-dim);
+    }
+
+    /* ── Connection status bar ───────────────────────────────── */
+    .conn-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .conn-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-muted); transition: background 0.3s;
+    }
+    .conn-dot.connected { background: var(--good); box-shadow: 0 0 6px rgba(0,204,136,0.4); }
+    #conn-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; }
+
+    /* ── Snapshot flash ──────────────────────────────────────── */
+    .snapshot-flash {
+      position: fixed; inset: 0;
+      background: white; opacity: 0; pointer-events: none; z-index: 999;
+      transition: opacity 0.05s;
+    }
+    .snapshot-flash.flash { opacity: 0.2; }
+
+    /* ── Misc ────────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+    .divider {
+      text-align: center; font-size: 0.72rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── Background system ──────────────────────────────────── */
+    .gradient-bg {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    }
+    .orb {
+      position: absolute; border-radius: 50%; pointer-events: none;
+      will-change: transform;
+    }
+    .orb-1 {
+      width: 800px; height: 800px;
+      background: radial-gradient(circle at center, rgba(0,100,255,0.18) 0%, transparent 65%);
+      filter: blur(80px);
+      top: -250px; left: -200px;
+      animation: orbFloat1 28s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 650px; height: 650px;
+      background: radial-gradient(circle at center, rgba(120,40,240,0.15) 0%, transparent 65%);
+      filter: blur(90px);
+      bottom: -180px; right: -150px;
+      animation: orbFloat2 34s ease-in-out infinite;
+    }
+    .orb-3 {
+      width: 550px; height: 550px;
+      background: radial-gradient(circle at center, rgba(0,200,255,0.1) 0%, transparent 65%);
+      filter: blur(70px);
+      top: 45%; right: 10%;
+      animation: orbFloat3 22s ease-in-out infinite;
+    }
+    .orb-4 {
+      width: 450px; height: 450px;
+      background: radial-gradient(circle at center, rgba(180,50,255,0.09) 0%, transparent 65%);
+      filter: blur(80px);
+      top: 20%; left: 30%;
+      animation: orbFloat2 38s ease-in-out infinite reverse;
+    }
+    @keyframes orbFloat1 {
+      0%, 100% { transform: translate(0px, 0px) scale(1); }
+      25%       { transform: translate(90px, -70px) scale(1.07); }
+      50%       { transform: translate(30px, 80px) scale(0.93); }
+      75%       { transform: translate(-50px, 30px) scale(1.04); }
+    }
+    @keyframes orbFloat2 {
+      0%, 100% { transform: translate(0px, 0px) scale(1); }
+      33%       { transform: translate(-80px, 50px) scale(1.1); }
+      66%       { transform: translate(60px, -60px) scale(0.9); }
+    }
+    @keyframes orbFloat3 {
+      0%, 100% { transform: translate(0px, 0px) scale(1); }
+      50%       { transform: translate(-100px, -50px) scale(1.06); }
+    }
+
+    /* Dot grid overlay */
+    .grid-overlay {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+      opacity: 0.25;
+    }
+
+    /* Cursor glow */
+    #cursor-glow {
+      position: fixed; width: 700px; height: 700px; border-radius: 50%;
+      pointer-events: none; z-index: 0;
+      background: radial-gradient(circle, rgba(0,153,255,0.055) 0%, transparent 65%);
+      transform: translate(-50%, -50%);
+      left: 50%; top: 50%;
+      transition: left 0.12s ease-out, top 0.12s ease-out;
+      opacity: 0;
+    }
+
+    /* ── Login hero ──────────────────────────────────────────── */
+    #login-screen {
+      position: relative; z-index: 1;
+    }
+    .login-hero {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; max-width: 580px; padding: 0 20px;
+    }
+    .login-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.6px;
+      text-transform: uppercase; color: var(--text-muted);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      padding: 7px 16px; border-radius: var(--radius-pill);
+      margin-bottom: 32px;
+      backdrop-filter: blur(8px);
+    }
+    .eyebrow-pulse {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(0,153,255,0.8);
+      animation: pulseGlow 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(0,153,255,0.8); }
+      50%       { opacity: 0.5; box-shadow: 0 0 3px rgba(0,153,255,0.3); }
+    }
+    .login-headline {
+      font-size: clamp(2.8rem, 7vw, 4.8rem);
+      font-weight: 800; letter-spacing: -2.5px; line-height: 1.06;
+      color: var(--text); margin-bottom: 22px;
+    }
+    .text-gradient {
+      background: linear-gradient(120deg, #60a5fa 0%, #a78bfa 45%, #f472b6 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .login-desc {
+      font-size: 1.05rem; line-height: 1.72; color: var(--text-muted);
+      max-width: 440px; margin-bottom: 40px; font-weight: 400;
+    }
+    .login-input-row {
+      display: flex; gap: 10px; width: 100%; max-width: 480px;
+      margin-bottom: 16px;
+    }
+    .login-input-row input[type="text"] {
+      flex: 1; margin-bottom: 0;
+    }
+    .btn-hero {
+      width: auto; white-space: nowrap;
+      display: flex; align-items: center; gap: 8px;
+      padding: 13px 22px;
+      background: linear-gradient(135deg, #0099ff, #6366f1);
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.3), 0 8px 32px rgba(0,153,255,0.25);
+    }
+    .btn-hero:hover {
+      opacity: 1;
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.5), 0 8px 40px rgba(0,153,255,0.4);
+      transform: translateY(-1px);
+    }
+    .btn-hero svg { flex-shrink: 0; }
+    .login-legal {
+      font-size: 0.72rem; color: var(--text-muted);
+      margin-bottom: 28px; letter-spacing: 0.1px;
+    }
+    .login-features {
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    }
+    .feature-pill {
+      font-size: 0.78rem; font-weight: 500; color: var(--text-muted);
+      padding: 7px 14px; border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: rgba(255,255,255,0.025);
+      backdrop-filter: blur(6px);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .feature-pill:hover { border-color: var(--border-light); color: var(--text-dim); }
+
+    /* ── Ensure content is above background ─────────────────── */
+    header, #app-screen { position: relative; z-index: 1; }
+    .snapshot-flash { z-index: 999; }
+
+    /* ── App panels glassmorphism ────────────────────────────── */
+    .wizard-panel {
+      background: rgba(8,8,8,0.7) !important;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    .camera-panel {
+      background: rgba(0,0,0,0.6) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    header {
+      background: rgba(0,0,0,0.6) !important;
+      backdrop-filter: blur(24px) !important;
+      -webkit-backdrop-filter: blur(24px) !important;
+    }
+
+    /* ── Login card (remove old) ─────────────────────────────── */
+    .login-card { display: none; }
+
+    /* ── Heart Loader ─────────────────────────────────────────── */
+    .heart-loader-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      padding: 18px 0;
+    }
+    .heart-svg-loader { overflow: visible; }
+    .heart-fill-rect {
+      transform-origin: 50% 100%;
+      animation: heartRise 1.7s ease-in-out infinite;
+    }
+    .heart-outline-path {
+      fill: none;
+      stroke: rgba(255, 60, 100, 0.22);
+      stroke-width: 3;
+    }
+    @keyframes heartRise {
+      0%   { transform: scaleY(0.07); opacity: 0.35; }
+      50%  { transform: scaleY(0.92); opacity: 1; }
+      100% { transform: scaleY(0.07); opacity: 0.35; }
+    }
+    .heart-loader-label {
+      font-size: 0.75rem; color: rgba(255, 100, 150, 0.75);
+      font-weight: 500; letter-spacing: 0.2px;
+    }
+
+    /* ── Chat Drawer ──────────────────────────────────────────── */
+    #chat-drawer {
+      position: fixed; top: 53px; right: 0; bottom: 0; width: 390px;
+      background: rgba(6,6,6,0.97); backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border-left: 1px solid var(--border); z-index: 200;
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      box-shadow: -16px 0 56px rgba(0,0,0,0.75);
+    }
+    #chat-drawer.open { transform: translateX(0); }
+    .drawer-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .drawer-title { font-size: 0.9rem; font-weight: 600; flex: 1; }
+    .drawer-close {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      cursor: pointer; width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .drawer-close:hover { background: rgba(255,255,255,0.07); color: var(--text); border-color: var(--border-light); }
+    .drawer-close svg { width: 12px; height: 12px; fill: currentColor; }
+    .drawer-messages {
+      flex: 1; overflow-y: auto; padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .drawer-messages::-webkit-scrollbar { width: 3px; }
+    .drawer-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 2px; }
+    .drawer-msg-vita {
+      display: flex; gap: 9px; align-items: flex-start;
+      animation: slideUp 0.2s ease;
+    }
+    .drawer-msg-vita .d-avatar {
+      width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(0,153,255,0.1); border: 1px solid rgba(0,153,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.62rem; font-weight: 700; color: var(--accent); margin-top: 2px;
+    }
+    .drawer-msg-vita .d-bubble {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 4px 12px 12px 12px;
+      padding: 9px 12px; font-size: 0.81rem; line-height: 1.72;
+      color: var(--text-dim); max-width: 90%; white-space: pre-wrap;
+    }
+    .drawer-msg-user {
+      display: flex; justify-content: flex-end;
+      animation: slideUp 0.2s ease;
+    }
+    .drawer-msg-user .d-bubble {
+      background: rgba(0,153,255,0.07); border: 1px solid rgba(0,153,255,0.15);
+      border-radius: 12px 12px 4px 12px;
+      padding: 9px 12px; font-size: 0.81rem; line-height: 1.72;
+      color: var(--text-dim); max-width: 90%;
+    }
+    .drawer-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      text-align: center;
+    }
+    .drawer-empty-icon { font-size: 2rem; opacity: 0.35; }
+    .drawer-empty-text { font-size: 0.8rem; color: var(--text-muted); }
+    .btn-chat {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      color: var(--text-muted); padding: 7px 14px;
+      border-radius: var(--radius-pill); cursor: pointer;
+      font-size: 0.75rem; font-family: inherit; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+      transition: all 0.2s; position: relative;
+    }
+    .btn-chat:hover { border-color: var(--border-light); color: var(--text-dim); background: rgba(255,255,255,0.07); }
+    .btn-chat.active { border-color: rgba(0,153,255,0.3); color: var(--accent); background: rgba(0,153,255,0.07); }
+    .chat-notif {
+      display: none; position: absolute; top: -5px; right: -5px;
+      width: 15px; height: 15px; border-radius: 50%;
+      background: var(--accent); color: white;
+      font-size: 0.58rem; font-weight: 700;
+      align-items: center; justify-content: center;
+      border: 2px solid var(--bg);
+    }
+    .chat-notif.show { display: flex; }
+
+    /* ── Intro Card ───────────────────────────────────────────── */
+    #intro-card {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 14px; padding: 30px 20px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: var(--radius); text-align: center;
+      animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .intro-icon-ring {
+      width: 58px; height: 58px;
+      background: linear-gradient(135deg, rgba(0,153,255,0.1), rgba(180,50,255,0.07));
+      border: 1px solid rgba(0,153,255,0.22);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+    }
+    .intro-heading { font-size: 1.0rem; font-weight: 700; letter-spacing: -0.3px; }
+    .intro-body { font-size: 0.81rem; color: var(--text-muted); line-height: 1.7; max-width: 260px; }
+    .intro-status {
+      display: flex; align-items: center; gap: 7px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: var(--radius-pill); padding: 6px 14px;
+      font-size: 0.73rem; color: var(--text-muted);
+    }
+    .intro-status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--warn); animation: blink 1.1s ease-in-out infinite;
+    }
+    .intro-status-dot.ready { background: var(--good); animation: none; box-shadow: 0 0 6px rgba(0,204,136,0.45); }
+    #intro-card, #thumbs-card { transition: opacity 0.4s ease; }
+  </style>
+</head>
+<body>
+
+<div class="gradient-bg" id="gradient-bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="orb orb-4"></div>
+</div>
+<div class="grid-overlay"></div>
+<div id="cursor-glow"></div>
+
+<div class="snapshot-flash" id="flash"></div>
+
+<!-- Shared SVG defs for heart loader -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <clipPath id="heartClip">
+      <path d="M50,85 C50,85 5,55 5,25 C5,10 17,2 30,2 C41,2 48,9 50,18 C52,9 59,2 70,2 C83,2 95,10 95,25 C95,55 50,85 50,85 Z"/>
+    </clipPath>
+    <linearGradient id="heartGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff6b9d"/>
+      <stop offset="100%" stop-color="#e91e63"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- Header -->
+<header>
+  <div>
+    <div class="logo">Vita<span class="logo-dot">.</span></div>
+    <div class="tagline">AI Visual Health Screening</div>
+  </div>
+  <div class="header-right">
+    <button class="btn-chat" id="chat-toggle-btn" onclick="toggleDrawer()" style="display:none">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+      Transcript
+      <span class="chat-notif" id="chat-notif"></span>
+    </button>
+    <div class="badge-medical">Not medical advice</div>
+  </div>
+</header>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-hero">
+    <div class="login-eyebrow">
+      <span class="eyebrow-pulse"></span>
+      Powered by Gemini 2.5 Flash
+    </div>
+    <h1 class="login-headline">Know your body.<br><span class="text-gradient">See it clearly.</span></h1>
+    <p class="login-desc">Five visual checks — eyes, nails, tongue, teeth &amp; gums, and skin — analyzed in real time by AI. No wearable needed.</p>
+    <div class="login-input-row">
+      <input type="text" id="user-id-input" placeholder="Enter your name to begin" autocomplete="off" />
+      <button class="btn btn-hero" id="start-btn" onclick="startSession()">
+        Start Check-In
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+    <p class="login-legal">Wellness tracking only &mdash; not a medical device or diagnosis tool</p>
+    <div class="login-features">
+      <div class="feature-pill">👁 Eyes</div>
+      <div class="feature-pill">💅 Nails</div>
+      <div class="feature-pill">👅 Tongue</div>
+      <div class="feature-pill">🦷 Teeth</div>
+      <div class="feature-pill">🌿 Skin</div>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app-screen">
+
+  <!-- Left: Camera -->
+  <div class="camera-panel">
+    <div class="camera-container">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="cv-overlay"></canvas>
+      <div class="camera-overlay">
+        <div class="scan-line" id="scan-line"></div>
+        <div class="corner tl"></div><div class="corner tr"></div>
+        <div class="corner bl"></div><div class="corner br"></div>
+        <div class="cam-status-bar">
+          <div class="rec-dot" id="rec-dot"></div>
+          <span id="cam-status-text">Initializing...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="control-btn active" id="mic-btn" onclick="toggleMic()">
+        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm5.3 11.5A5.5 5.5 0 0 1 6.7 12.5H5a7 7 0 0 0 6 6.92V21h2v-1.58A7 7 0 0 0 19 12.5h-1.7z"/></svg>
+        Mic On
+      </button>
+      <button class="control-btn active" id="cam-btn" onclick="toggleCamera()">
+        <svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+        Camera On
+      </button>
+      <button class="control-btn" onclick="manualCapture()" title="Save snapshot">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+        Capture
+      </button>
+    </div>
+
+    <div id="audio-viz"></div>
+  </div>
+
+  <!-- Right: Wizard -->
+  <div class="wizard-panel">
+
+    <!-- Step progress nav -->
+    <div class="step-nav" id="step-nav">
+      <div class="step-nav-item" id="snav-eyes">
+        <div class="step-dot">1</div>
+        <div class="step-dot-label">Eyes</div>
+      </div>
+      <div class="step-nav-item" id="snav-nails">
+        <div class="step-dot">2</div>
+        <div class="step-dot-label">Nails</div>
+      </div>
+      <div class="step-nav-item" id="snav-tongue">
+        <div class="step-dot">3</div>
+        <div class="step-dot-label">Tongue</div>
+      </div>
+      <div class="step-nav-item" id="snav-teeth">
+        <div class="step-dot">4</div>
+        <div class="step-dot-label">Teeth</div>
+      </div>
+      <div class="step-nav-item" id="snav-skin">
+        <div class="step-dot">5</div>
+        <div class="step-dot-label">Skin</div>
+      </div>
+    </div>
+
+    <!-- Scrollable content -->
+    <div class="wizard-scroll" id="wizard-scroll">
+
+      <!-- Phase: Greeting -->
+      <div id="phase-greeting">
+
+        <!-- State 0: Intro / camera warm-up -->
+        <div id="intro-card">
+          <div class="intro-icon-ring">💙</div>
+          <div class="intro-heading">Hi, I'm Vita</div>
+          <div class="intro-body">I'll check five areas — eyes, nails, tongue, teeth, and skin — using your camera. One moment while I get set up.</div>
+          <div class="intro-status">
+            <span class="intro-status-dot" id="intro-dot"></span>
+            <span id="intro-status-text">Warming up camera...</span>
+          </div>
+        </div>
+
+        <!-- State 1: Thumbs-up trigger (hidden until camera ready) -->
+        <div id="thumbs-card" style="display:none">
+          <div class="thumbs-emoji">👁️</div>
+          <div class="thumbs-title">Let Vita see you first</div>
+          <div class="thumbs-sub">Hold a thumbs up 👍 to the camera. Once Vita confirms she can see you clearly, the scan will begin automatically.</div>
+          <div class="thumbs-ring-wrap">
+            <svg width="76" height="76" viewBox="0 0 76 76">
+              <circle cx="38" cy="38" r="32" fill="none" stroke="var(--border)" stroke-width="4"/>
+              <circle id="thumbs-progress-circle" cx="38" cy="38" r="32" fill="none"
+                stroke="var(--accent)" stroke-width="4"
+                stroke-dasharray="201.1" stroke-dashoffset="201.1"
+                stroke-linecap="round" transform="rotate(-90 38 38)"/>
+            </svg>
+            <div class="thumbs-ring-inner">👍</div>
+          </div>
+          <div class="thumbs-detected" id="thumbs-label">Waiting for thumbs up...</div>
+          <button class="btn btn-secondary" style="width:auto;padding:9px 18px;font-size:0.8rem" onclick="manualStartGreeting()">
+            Start without gesture
+          </button>
+        </div>
+
+        <!-- State 2: Vita responding -->
+        <div id="vita-response" style="display:none; flex-direction:column; gap:14px;">
+          <div class="greeting-header">
+            <div class="vita-avatar">V</div>
+            <div>
+              <div class="vita-name">Vita</div>
+              <div class="vita-subtitle">Scanning your face...</div>
+            </div>
+          </div>
+          <div class="vita-bubble-wrap" id="greeting-bubble">
+            <div class="heart-loader-wrap" id="greeting-heart">
+              <svg width="44" height="40" viewBox="0 0 100 90" class="heart-svg-loader">
+                <path class="heart-outline-path" d="M50,85 C50,85 5,55 5,25 C5,10 17,2 30,2 C41,2 48,9 50,18 C52,9 59,2 70,2 C83,2 95,10 95,25 C95,55 50,85 50,85 Z"/>
+                <rect class="heart-fill-rect" x="0" y="0" width="100" height="90" fill="url(#heartGrad)" clip-path="url(#heartClip)"/>
+              </svg>
+              <div class="heart-loader-label">Vita is thinking...</div>
+            </div>
+            <div id="greeting-text" style="display:none"></div>
+          </div>
+          <button class="btn" id="begin-btn" onclick="beginExamination()" style="display:none">
+            Begin Examination →
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Phase: Step instructions -->
+      <div id="phase-step">
+        <div class="step-card">
+          <div class="step-card-header">
+            <div class="step-card-title" id="step-title">Eyes</div>
+            <div class="step-counter">Step <span id="step-num">1</span> of 5</div>
+          </div>
+          <div class="step-card-body">
+            <div class="instructions-list" id="step-instructions"></div>
+            <div class="step-hint" id="step-hint" style="display:none">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+              <span id="step-hint-text"></span>
+            </div>
+            <button class="btn" id="ready-btn" onclick="markReady()">I'm Ready</button>
+            <!-- Glasses banner — shown during eye step if glasses detected -->
+            <div id="glasses-banner">
+              <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+              <span>Glasses detected — remove them and Vita will continue automatically</span>
+            </div>
+            <div id="scanning-state" style="margin-top:14px; display:flex; flex-direction:column; gap:12px;">
+              <div class="scanning-indicator">
+                <span class="scan-pulse"></span>
+                Vita is analyzing — speak naturally to respond
+              </div>
+              <div id="scan-heart-wrap" style="display:none">
+                <div class="heart-loader-wrap" style="padding:10px 0">
+                  <svg width="36" height="33" viewBox="0 0 100 90" class="heart-svg-loader">
+                    <path class="heart-outline-path" d="M50,85 C50,85 5,55 5,25 C5,10 17,2 30,2 C41,2 48,9 50,18 C52,9 59,2 70,2 C83,2 95,10 95,25 C95,55 50,85 50,85 Z"/>
+                    <rect class="heart-fill-rect" x="0" y="0" width="100" height="90" fill="url(#heartGrad)" clip-path="url(#heartClip)"/>
+                  </svg>
+                  <div class="heart-loader-label">Processing...</div>
+                </div>
+              </div>
+              <div id="live-transcript"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results area (cards appended here) -->
+      <div id="results-area"></div>
+
+      <!-- Phase: Summary -->
+      <div id="phase-summary">
+        <div class="summary-header-card">
+          <div class="summary-check">
+            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+          </div>
+          <div class="summary-title">Examination Complete</div>
+          <div class="summary-sub">All 5 checks finished — here's Vita's full summary</div>
+        </div>
+        <div class="summary-content-card" id="summary-content"></div>
+        <div class="summary-actions">
+          <button class="btn" onclick="saveSession()">Save Report</button>
+          <button class="btn btn-secondary" onclick="endSession()">End Session</button>
+        </div>
+      </div>
+
+    </div><!-- /wizard-scroll -->
+
+    <!-- Text input bar -->
+    <div class="text-input-bar visible" id="text-input-bar">
+      <input type="text" id="text-input" placeholder="Type a message to Vita..." autocomplete="off" maxlength="500" />
+      <button class="text-send-btn" onclick="sendTextInput()" title="Send">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+      <button class="text-mode-toggle" id="mic-mode-btn" onclick="toggleMicMode()" title="Toggle mic">
+        🎙 Mic
+      </button>
+    </div>
+
+    <!-- Connection bar -->
+    <div class="conn-bar">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-label">Connecting...</span>
+    </div>
+
+  </div><!-- /wizard-panel -->
+
+</div><!-- /app-screen -->
+
+<script>
+// ── Interactive background ─────────────────────────────────────────────
+(function() {
+  const glow = document.getElementById('cursor-glow');
+  const orbs = document.querySelectorAll('.orb');
+  let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+  document.addEventListener('mousemove', (e) => {
+    mx = e.clientX; my = e.clientY;
+    glow.style.left = mx + 'px';
+    glow.style.top = my + 'px';
+    glow.style.opacity = '1';
+    // Subtle parallax on orbs
+    const cx = (mx / window.innerWidth - 0.5) * 2;
+    const cy = (my / window.innerHeight - 0.5) * 2;
+    orbs.forEach((orb, i) => {
+      const depth = (i + 1) * 12;
+      orb.style.marginLeft = (cx * depth) + 'px';
+      orb.style.marginTop = (cy * depth) + 'px';
+    });
+  });
+  document.addEventListener('mouseleave', () => {
+    glow.style.opacity = '0';
+  });
+})();
+
+// ── State ─────────────────────────────────────────────────────────────────
+let ws = null;
+let userId = '';
+let micEnabled = true;
+let cameraEnabled = true;
+let videoStream = null;
+let audioCtx = null;
+let inputProcessor = null;
+let outputAudioCtx = null;
+let nextPlayTime = 0;
+let frameInterval = null;
+let currentBodyPart = 'unknown';
+let sessionTranscript = [];
+let conversationHistory = []; // [{role:'vita'|'user', text:'...'}]
+let drawerOpen = false;
+let unreadCount = 0;
+
+// Wizard state
+let wizardPhase = 'greeting'; // 'greeting' | 'steps' | 'summary'
+let currentStepIdx = -1;
+let stepIsScanning = false;
+let greetingBuffer = '';
+let liveBuffer = '';
+let summaryBuffer = '';
+let collectingSummary = false;
+let sessionData = {};
+
+const STEPS = [
+  {
+    id: 'eyes', label: 'Eyes',
+    navId: 'snav-eyes',
+    instructions: [
+      'Remove any glasses — lenses block what Vita needs to see',
+      'Move your face 6–8 inches from the camera',
+      'Look left and hold for 2 seconds, then right, then straight at the camera'
+    ],
+    hint: 'Tip: Face a window or lamp for better lighting on your eyes'
+  },
+  {
+    id: 'nails', label: 'Fingernails',
+    navId: 'snav-nails',
+    instructions: [
+      'Hold both hands flat, palm-down, about 6 inches from the camera',
+      'Spread your fingers wide so all nails are clearly visible',
+      'Ensure good lighting — avoid shadows over your hands'
+    ],
+    hint: 'Tip: Natural light works best for nail color accuracy'
+  },
+  {
+    id: 'tongue', label: 'Tongue',
+    navId: 'snav-tongue',
+    instructions: [
+      'Stick your tongue out as far as you can and hold still',
+      'Face a light source so your tongue is well-lit',
+      'Keep your mouth wide open'
+    ],
+    hint: 'Tip: Avoid eating or drinking 30 minutes before this check for best results'
+  },
+  {
+    id: 'teeth', label: 'Teeth & Gums',
+    navId: 'snav-teeth',
+    instructions: [
+      'Give a wide smile first so Vita can see your teeth',
+      'Then pull your lower lip down with two fingers to expose the gum line',
+      'Hold still in good lighting'
+    ],
+    hint: null
+  },
+  {
+    id: 'skin', label: 'Skin',
+    navId: 'snav-skin',
+    instructions: [
+      'Show the backs of both hands to the camera',
+      'Then flip to show your palms',
+      'Then bring the camera close to your face'
+    ],
+    hint: 'Tip: Use a well-lit room — natural light preferred for accurate skin tone'
+  }
+];
+
+// ── Audio viz ─────────────────────────────────────────────────────────────
+const NUM_BARS = 18;
+const vizEl = document.getElementById('audio-viz');
+for (let i = 0; i < NUM_BARS; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.style.height = '2px';
+  vizEl.appendChild(bar);
+}
+const bars = Array.from(vizEl.querySelectorAll('.bar'));
+function updateViz(data) {
+  const step = Math.floor(data.length / NUM_BARS);
+  bars.forEach((bar, i) => {
+    const val = data[i * step] / 255;
+    bar.style.height = Math.max(2, val * 22) + 'px';
+  });
+}
+
+// ── Start session ─────────────────────────────────────────────────────────
+async function startSession() {
+  const input = document.getElementById('user-id-input');
+  userId = input.value.trim();
+  if (!userId) { input.focus(); return; }
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').classList.add('visible');
+
+  await initCamera();
+  await initAudio();
+  if (outputAudioCtx && outputAudioCtx.state === 'suspended') {
+    await outputAudioCtx.resume();
+  }
+  connectWebSocket();
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────
+async function initCamera() {
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      audio: false
+    });
+    document.getElementById('video').srcObject = videoStream;
+    setCamStatus('Camera ready');
+  } catch (e) {
+    setCamStatus('Camera unavailable: ' + e.message);
+  }
+}
+
+function toggleCamera() {
+  cameraEnabled = !cameraEnabled;
+  if (videoStream) videoStream.getVideoTracks().forEach(t => t.enabled = cameraEnabled);
+  const btn = document.getElementById('cam-btn');
+  btn.classList.toggle('active', cameraEnabled);
+  btn.classList.toggle('muted', !cameraEnabled);
+  btn.innerHTML = cameraEnabled
+    ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg> Camera On`
+    : `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6.5l-4-4-14 14 4 4 2.92-2.92L12 19h8c1.1 0 2-.9 2-2V7c0-.45-.16-.86-.42-1.18L21 6.5z"/></svg> Camera Off`;
+}
+
+// ── Microphone & Audio ────────────────────────────────────────────────────
+async function initAudio() {
+  try {
+    audioCtx = new AudioContext({ sampleRate: 16000 });
+    outputAudioCtx = new AudioContext({ sampleRate: 24000 });
+
+    const micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+
+    const source = audioCtx.createMediaStreamSource(micStream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    function animateViz() {
+      if (!micEnabled) { bars.forEach(b => b.style.height = '2px'); }
+      else { analyser.getByteFrequencyData(dataArray); updateViz(dataArray); }
+      requestAnimationFrame(animateViz);
+    }
+    animateViz();
+
+    inputProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+    inputProcessor.onaudioprocess = (e) => {
+      if (!micEnabled || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const float32 = e.inputBuffer.getChannelData(0);
+      // Always send audio — Gemini's server-side VAD needs silence frames to detect
+      // end-of-speech. Skipping silence causes the model to hang after interruptions.
+      // Echo cancellation (enabled on mic constraints) handles Vita's own audio.
+      const int16 = float32ToInt16(float32);
+      ws.send(JSON.stringify({ type: 'audio', data: arrayBufferToBase64(int16.buffer) }));
+    };
+    source.connect(inputProcessor);
+    inputProcessor.connect(audioCtx.destination);
+
+    document.getElementById('rec-dot').classList.add('active');
+    setCamStatus('Listening...');
+  } catch (e) {
+    setCamStatus('Microphone unavailable: ' + e.message);
+  }
+}
+
+function toggleMic() {
+  micEnabled = !micEnabled;
+  const btn = document.getElementById('mic-btn');
+  btn.classList.toggle('active', micEnabled);
+  btn.classList.toggle('muted', !micEnabled);
+  btn.innerHTML = micEnabled
+    ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm5.3 11.5A5.5 5.5 0 0 1 6.7 12.5H5a7 7 0 0 0 6 6.92V21h2v-1.58A7 7 0 0 0 19 12.5h-1.7z"/></svg> Mic On`
+    : `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-1.7A5.5 5.5 0 0 1 6.7 11H5a7 7 0 0 0 6 6.92V21h2v-1.58A7 7 0 0 0 19 11zm-7-9a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM2.05 2.05 1 3.1l8 8V12a3 3 0 0 0 6 0v-.5l.94.94c-.3.54-.94.56-.94.56A5.5 5.5 0 0 1 6.7 12H5a7 7 0 0 0 6.94 6.92V21h2v-2.08A7 7 0 0 0 19 12h-1.7a5.48 5.48 0 0 1-.8 2.7l-1.42-1.42A3.5 3.5 0 0 0 15.5 12V8.1l8.85 8.85 1.06-1.06L2.05 2.05z"/></svg> Mic Off`;
+  document.getElementById('rec-dot').classList.toggle('active', micEnabled);
+}
+
+// ── Audio playback (24kHz PCM from Gemini) ────────────────────────────────
+function playAudioChunk(base64Data) {
+  if (!outputAudioCtx) return;
+  if (outputAudioCtx.state === 'suspended') outputAudioCtx.resume();
+  try {
+    const bytes = base64ToArrayBuffer(base64Data);
+    if (bytes.byteLength === 0) return;
+    const int16 = new Int16Array(bytes);
+    if (int16.length === 0) return;
+    const buffer = outputAudioCtx.createBuffer(1, int16.length, 24000);
+    const float32 = buffer.getChannelData(0);
+    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
+    const src = outputAudioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(outputAudioCtx.destination);
+    const now = outputAudioCtx.currentTime;
+    if (nextPlayTime < now) nextPlayTime = now + 0.02;
+    src.start(nextPlayTime);
+    nextPlayTime += buffer.duration;
+  } catch (e) { console.error('Audio playback error:', e); }
+}
+
+// ── Video frame capture ───────────────────────────────────────────────────
+function startFrameCapture() {
+  if (frameInterval) clearInterval(frameInterval);
+  frameInterval = setInterval(() => {
+    if (!cameraEnabled || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const frame = captureFrame(cvScanning);
+    if (frame) {
+      ws.send(JSON.stringify({ type: 'video', data: frame, body_part: currentBodyPart }));
+    }
+  }, stepIsScanning ? 250 : 333); // ~3fps always, 4fps when scanning
+}
+
+function captureFrame(highRes = false) {
+  const video = document.getElementById('video');
+  if (video.readyState < 2) return null;
+  const canvas = document.createElement('canvas');
+  const w = highRes ? 1280 : 640;
+  const h = highRes ? 720 : 360;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(w, 0); ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', highRes ? 0.92 : 0.8).split(',')[1];
+}
+
+function manualCapture() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  flashScreen();
+  ws.send(JSON.stringify({
+    type: 'save_snapshot',
+    body_part: currentBodyPart,
+    analysis: sessionTranscript.slice(-3).join(' ')
+  }));
+}
+
+function flashScreen() {
+  const f = document.getElementById('flash');
+  f.classList.add('flash');
+  setTimeout(() => f.classList.remove('flash'), 150);
+}
+
+// ── Text input ────────────────────────────────────────────────────────────
+function sendTextInput() {
+  const input = document.getElementById('text-input');
+  const text = input.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  // Show user bubble in the appropriate transcript
+  appendUserBubble(text);
+  // Add to drawer history
+  addToDrawer('user', text);
+
+  ws.send(JSON.stringify({ type: 'text_input', text }));
+  input.value = '';
+  input.focus();
+}
+
+function appendUserBubble(text) {
+  if (wizardPhase === 'greeting') {
+    // Append to greeting bubble area
+    const wrap = document.getElementById('vita-response');
+    if (wrap && wrap.style.display !== 'none') {
+      const el = document.createElement('div');
+      el.className = 'user-text-msg';
+      el.innerHTML = `<div class="user-text-bubble">${escHtml(text)}</div>`;
+      wrap.insertBefore(el, document.getElementById('begin-btn'));
+    }
+  } else if (wizardPhase === 'steps') {
+    // Show in live transcript
+    const el = document.getElementById('live-transcript');
+    if (el) {
+      const msgEl = document.createElement('div');
+      msgEl.className = 'user-text-msg';
+      msgEl.style.marginTop = '6px';
+      msgEl.innerHTML = `<div class="user-text-bubble">${escHtml(text)}</div>`;
+      el.appendChild(msgEl);
+      document.getElementById('wizard-scroll').scrollTop = document.getElementById('wizard-scroll').scrollHeight;
+    }
+  }
+}
+
+let micMuted = false;
+function toggleMicMode() {
+  micMuted = !micMuted;
+  micEnabled = !micMuted;
+  const btn = document.getElementById('mic-mode-btn');
+  const micBtn = document.getElementById('mic-btn');
+  if (micMuted) {
+    btn.textContent = '🔇 Mic off';
+    btn.classList.add('muted-mode');
+    micBtn.classList.remove('active');
+    micBtn.classList.add('muted');
+    document.getElementById('rec-dot').classList.remove('active');
+  } else {
+    btn.textContent = '🎙 Mic';
+    btn.classList.remove('muted-mode');
+    micBtn.classList.add('active');
+    micBtn.classList.remove('muted');
+    document.getElementById('rec-dot').classList.add('active');
+  }
+}
+
+// ── Thumbs-up greeting trigger ────────────────────────────────────────────
+let thumbsUpHeldMs = 0;
+let thumbsUpTriggered = false;
+let greetingTriggered = false;
+let greetingFallbackTimer = null;
+const THUMBS_HOLD_MS = 900;
+const THUMBS_CIRCUMFERENCE = 201.1;
+
+function isThumbsUp(landmarks) {
+  // Thumb tip (4) must be clearly above thumb base (2)
+  if (landmarks[4].y >= landmarks[2].y - 0.04) return false;
+  // All other fingers must be curled: tip y > pip y
+  const curled = (tip, pip) => landmarks[tip].y > landmarks[pip].y - 0.02;
+  return curled(8,6) && curled(12,10) && curled(16,14) && curled(20,18);
+}
+
+function updateThumbsProgress(heldMs) {
+  const pct = Math.min(heldMs / THUMBS_HOLD_MS, 1);
+  const offset = THUMBS_CIRCUMFERENCE * (1 - pct);
+  const circle = document.getElementById('thumbs-progress-circle');
+  if (circle) circle.setAttribute('stroke-dashoffset', offset.toFixed(1));
+  const label = document.getElementById('thumbs-label');
+  if (label) {
+    if (pct === 0) label.textContent = 'Waiting for thumbs up...';
+    else if (pct < 1) label.textContent = 'Hold it... scanning';
+    else label.textContent = 'Got it! Starting scan...';
+  }
+}
+
+function triggerGreetingScan() {
+  if (greetingTriggered) return;
+  greetingTriggered = true;
+  if (greetingFallbackTimer) { clearTimeout(greetingFallbackTimer); greetingFallbackTimer = null; }
+
+  // Transition UI: hide thumbs card, show vita response
+  document.getElementById('thumbs-card').style.display = 'none';
+  const resp = document.getElementById('vita-response');
+  resp.style.display = 'flex';
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'start_greeting' }));
+  }
+}
+
+function manualStartGreeting() {
+  triggerGreetingScan();
+}
+
+let glassesCheckInterval = null;
+
+function startGlassesAutoCheck() {
+  if (glassesCheckInterval) return;
+  // Automatically re-check every 3s — no button needed
+  glassesCheckInterval = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN && currentBodyPart === 'eyes' && stepIsScanning) {
+      ws.send(JSON.stringify({ type: 'glasses_check' }));
+    } else {
+      stopGlassesAutoCheck();
+    }
+  }, 3000);
+}
+
+function stopGlassesAutoCheck() {
+  if (glassesCheckInterval) { clearInterval(glassesCheckInterval); glassesCheckInterval = null; }
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────
+function connectWebSocket() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/${encodeURIComponent(userId)}`);
+
+  ws.onopen = () => {
+    document.getElementById('conn-dot').classList.add('connected');
+    document.getElementById('conn-label').textContent = 'Connected to Vita';
+    document.getElementById('scan-line').classList.add('active');
+    document.getElementById('chat-toggle-btn').style.display = 'flex';
+    startFrameCapture();
+    greetingTriggered = false;
+    thumbsUpHeldMs = 0;
+    thumbsUpTriggered = false;
+    updateThumbsProgress(0);
+    // Show intro card for 3s to let camera warm up, then reveal thumbs-up card
+    setTimeout(() => {
+      const intro = document.getElementById('intro-card');
+      const thumbs = document.getElementById('thumbs-card');
+      const dot = document.getElementById('intro-dot');
+      const statusText = document.getElementById('intro-status-text');
+      dot.classList.add('ready');
+      statusText.textContent = 'Camera ready — show thumbs up to begin';
+      setTimeout(() => {
+        intro.style.opacity = '0';
+        setTimeout(() => {
+          intro.style.display = 'none';
+          thumbs.style.display = 'flex';
+          thumbs.style.opacity = '0';
+          requestAnimationFrame(() => { thumbs.style.opacity = '1'; });
+        }, 400);
+      }, 800);
+    }, 2500);
+    // Fallback: auto-trigger 18s after connect (user has ~15s after thumbs card appears)
+    greetingFallbackTimer = setTimeout(() => triggerGreetingScan(), 18000);
+  };
+
+  ws.onclose = () => {
+    document.getElementById('conn-dot').classList.remove('connected');
+    document.getElementById('conn-label').textContent = 'Disconnected';
+    document.getElementById('scan-line').classList.remove('active');
+    if (frameInterval) clearInterval(frameInterval);
+  };
+
+  ws.onerror = () => {
+    document.getElementById('conn-label').textContent = 'Connection error';
+  };
+
+  ws.onmessage = (event) => {
+    handleServerMessage(JSON.parse(event.data));
+  };
+}
+
+function handleServerMessage(msg) {
+  switch (msg.type) {
+
+    case 'audio':
+      if (outputAudioCtx?.state === 'suspended') outputAudioCtx.resume();
+      playAudioChunk(msg.data);
+      break;
+
+    case 'text':
+      handleText(msg.data);
+      sessionTranscript.push(msg.data);
+      break;
+
+    case 'vita_speaking':
+      setCamStatus(msg.value ? 'Vita is speaking... (speak to interrupt)' : 'Listening...');
+      if (msg.value) {
+        // Show heart loaders when Vita starts responding
+        const gh = document.getElementById('greeting-heart');
+        const sh = document.getElementById('scan-heart-wrap');
+        const gt = document.getElementById('greeting-text');
+        if (gh && gt && gt.style.display === 'none') gh.style.display = 'flex';
+        if (sh && wizardPhase === 'steps' && stepIsScanning && !liveBuffer) sh.style.display = 'block';
+      } else {
+        // Hide scan heart when done
+        const sh = document.getElementById('scan-heart-wrap');
+        if (sh) sh.style.display = 'none';
+      }
+      break;
+
+    case 'interrupted':
+      nextPlayTime = 0;
+      setCamStatus('Listening...');
+      break;
+
+    case 'turn_complete':
+      onTurnComplete(msg.transcript || '');
+      break;
+
+    case 'auto_capture':
+      flashScreen();
+      ws.send(JSON.stringify({
+        type: 'save_snapshot',
+        body_part: msg.body_part || currentBodyPart,
+        analysis: msg.transcript || ''
+      }));
+      completeStep(msg.body_part || currentBodyPart, msg.transcript || '');
+      break;
+
+    case 'snapshot_saved':
+      // silent
+      break;
+
+    case 'session_saved':
+      document.getElementById('conn-label').textContent = 'Session saved';
+      break;
+
+    case 'error':
+      document.getElementById('conn-label').textContent = 'Error: ' + msg.message;
+      break;
+  }
+}
+
+// ── Text routing ──────────────────────────────────────────────────────────
+function handleText(text) {
+  if (wizardPhase === 'greeting') {
+    appendGreetingText(text);
+  } else if (wizardPhase === 'steps' && stepIsScanning) {
+    appendLiveTranscript(text);
+    checkForAnalysisComplete(text);
+    checkForGlasses(text);
+  } else if (wizardPhase === 'steps' && !stepIsScanning) {
+    // Vita saying something between steps — append to live transcript area if visible
+    appendLiveTranscript(text);
+  }
+
+  // Always collect summary
+  const lower = text.toLowerCase();
+  if (lower.includes('overall impression') || lower.includes('wellness summary') || lower.includes('session summary')) {
+    collectingSummary = true;
+  }
+  if (collectingSummary) {
+    summaryBuffer += text;
+  }
+}
+
+function appendGreetingText(text) {
+  const heart = document.getElementById('greeting-heart');
+  const textEl = document.getElementById('greeting-text');
+  if (heart) heart.style.display = 'none';
+  if (textEl) { textEl.style.display = 'block'; }
+  greetingBuffer += text;
+  if (textEl) textEl.textContent = greetingBuffer;
+}
+
+function appendLiveTranscript(text) {
+  const el = document.getElementById('live-transcript');
+  const sh = document.getElementById('scan-heart-wrap');
+  if (el.style.display === 'none' || !el.style.display) {
+    el.style.display = 'block';
+  }
+  if (sh) sh.style.display = 'none';
+  liveBuffer += text;
+  el.textContent = liveBuffer;
+  // scroll wizard
+  const scroll = document.getElementById('wizard-scroll');
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+function checkForGlasses(text) {
+  if (currentBodyPart !== 'eyes') return;
+  const lower = text.toLowerCase();
+
+  // Glasses detected — start auto-checking
+  const mentionsGlasses = lower.includes('glass') || lower.includes('spectacle') || lower.includes('eyewear') || lower.includes('lens');
+  const mentionsRemove = lower.includes('remove') || lower.includes('take off') || lower.includes('without') || lower.includes('need to') || lower.includes('before');
+  if (mentionsGlasses && mentionsRemove) {
+    const banner = document.getElementById('glasses-banner');
+    banner.style.display = 'flex';
+    startGlassesAutoCheck();
+  }
+
+  // Glasses confirmed gone — Vita is now describing actual eye features
+  const glassesGone = (lower.includes('clearly now') || lower.includes('can see your eyes') || lower.includes('glasses are') && lower.includes('off'))
+    || (lower.includes('sclera') || lower.includes('iris') || lower.includes('pupil') || lower.includes('eyelid'));
+  if (glassesGone && glassesCheckInterval) {
+    stopGlassesAutoCheck();
+    document.getElementById('glasses-banner').style.display = 'none';
+  }
+}
+
+function checkForAnalysisComplete(text) {
+  if (text.toLowerCase().includes('analysis complete')) {
+    // Give Vita a moment to finish the sentence, then complete the step
+    setTimeout(() => {
+      if (stepIsScanning && wizardPhase === 'steps') {
+        completeStep(STEPS[currentStepIdx].id, liveBuffer);
+      }
+    }, 2500);
+  }
+}
+
+function onTurnComplete(transcript) {
+  // Hide heart loaders
+  const sh = document.getElementById('scan-heart-wrap');
+  if (sh) sh.style.display = 'none';
+
+  if (wizardPhase === 'greeting') {
+    // Show "Begin Examination" button after first turn
+    document.getElementById('begin-btn').style.display = 'block';
+  }
+
+  // Add completed Vita turn to conversation drawer
+  if (transcript && transcript.trim()) {
+    addToDrawer('vita', transcript.trim());
+  }
+}
+
+// ── Wizard state machine ──────────────────────────────────────────────────
+function beginExamination() {
+  wizardPhase = 'steps';
+  currentStepIdx = 0;
+
+  document.getElementById('phase-greeting').style.display = 'none';
+  document.getElementById('phase-step').style.display = 'flex';
+
+  showStep(0);
+}
+
+function showStep(idx) {
+  if (idx >= STEPS.length) { showSummary(); return; }
+
+  const step = STEPS[idx];
+  stepIsScanning = false;
+  liveBuffer = '';
+  currentBodyPart = step.id;
+
+  // Update nav
+  STEPS.forEach((s, i) => {
+    const navEl = document.getElementById(s.navId);
+    navEl.classList.toggle('active', i === idx);
+    navEl.classList.toggle('done', i < idx);
+    // update dot content
+    const dot = navEl.querySelector('.step-dot');
+    if (i < idx) dot.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
+    else dot.textContent = i + 1;
+  });
+
+  // Update step card
+  document.getElementById('step-title').textContent = step.label;
+  document.getElementById('step-num').textContent = idx + 1;
+
+  const instrEl = document.getElementById('step-instructions');
+  instrEl.innerHTML = step.instructions.map(inst => `
+    <div class="instruction-item">
+      <div class="inst-icon">
+        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+      </div>
+      <span>${inst}</span>
+    </div>
+  `).join('');
+
+  const hintEl = document.getElementById('step-hint');
+  const hintText = document.getElementById('step-hint-text');
+  if (step.hint) {
+    hintText.textContent = step.hint;
+    hintEl.style.display = 'flex';
+  } else {
+    hintEl.style.display = 'none';
+  }
+
+  const readyBtn = document.getElementById('ready-btn');
+  readyBtn.textContent = `I'm Ready — Examine My ${step.label}`;
+  readyBtn.disabled = false;
+  readyBtn.style.display = 'block';
+
+  document.getElementById('scanning-state').style.display = 'none';
+  document.getElementById('live-transcript').textContent = '';
+  document.getElementById('glasses-banner').style.display = 'none';
+  stopGlassesAutoCheck();
+
+  startCVScan(step.id);
+
+  // Scroll to top of wizard
+  document.getElementById('wizard-scroll').scrollTop = 0;
+}
+
+function markReady() {
+  const step = STEPS[currentStepIdx];
+  stepIsScanning = true;
+  liveBuffer = '';
+
+  const readyBtn = document.getElementById('ready-btn');
+  readyBtn.disabled = true;
+  readyBtn.textContent = 'Analyzing...';
+
+  document.getElementById('scanning-state').style.display = 'flex';
+  document.getElementById('live-transcript').style.display = 'block';
+
+  // Restart frame capture at higher rate
+  startFrameCapture();
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'step_ready', body_part: step.id }));
+  }
+}
+
+function completeStep(part, transcript) {
+  if (!stepIsScanning) return;
+  stepIsScanning = false;
+
+  const stepIdx = STEPS.findIndex(s => s.id === part);
+  if (stepIdx < 0) return;
+
+  // Mark nav done
+  const navEl = document.getElementById(STEPS[stepIdx].navId);
+  navEl.classList.remove('active');
+  navEl.classList.add('done');
+  const dot = navEl.querySelector('.step-dot');
+  dot.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
+
+  // Add result card to results area
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.innerHTML = `
+    <div class="result-card-header">
+      <div class="result-label">${STEPS[stepIdx].label}</div>
+      <div class="result-badge done">✓ Complete</div>
+    </div>
+    <div class="result-text">${escHtml(transcript)}</div>
+  `;
+  document.getElementById('results-area').appendChild(card);
+
+  stopCVScan();
+
+  const nextIdx = stepIdx + 1;
+  currentStepIdx = nextIdx;
+
+  if (nextIdx < STEPS.length) {
+    setTimeout(() => showStep(nextIdx), 900);
+  } else {
+    setTimeout(() => showSummary(), 900);
+  }
+}
+
+function showSummary() {
+  wizardPhase = 'summary';
+  document.getElementById('phase-step').style.display = 'none';
+  document.getElementById('phase-summary').style.display = 'flex';
+  document.getElementById('summary-content').textContent = summaryBuffer || sessionTranscript.join('\n');
+
+  // Mark all nav items done
+  STEPS.forEach(s => {
+    const navEl = document.getElementById(s.navId);
+    navEl.classList.remove('active');
+    navEl.classList.add('done');
+  });
+
+  const scroll = document.getElementById('wizard-scroll');
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+function saveSession() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'end_session', summary: summaryBuffer || sessionTranscript.join('\n') }));
+}
+
+function endSession() {
+  saveSession();
+  setTimeout(() => {
+    if (ws) ws.close();
+    if (frameInterval) clearInterval(frameInterval);
+    stopCVScan();
+    if (inputProcessor) { inputProcessor.disconnect(); inputProcessor = null; }
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+    if (outputAudioCtx) { outputAudioCtx.close(); outputAudioCtx = null; }
+    nextPlayTime = 0;
+
+    // Reset state
+    wizardPhase = 'greeting'; currentStepIdx = -1; stepIsScanning = false;
+    greetingBuffer = ''; liveBuffer = ''; summaryBuffer = ''; collectingSummary = false;
+    sessionTranscript = []; conversationHistory = []; drawerOpen = false; unreadCount = 0;
+
+    document.getElementById('app-screen').classList.remove('visible');
+    document.getElementById('login-screen').style.display = 'flex';
+
+    // Reset wizard UI
+    document.getElementById('phase-greeting').style.display = '';
+    document.getElementById('phase-step').style.display = 'none';
+    document.getElementById('phase-summary').style.display = 'none';
+    document.getElementById('results-area').innerHTML = '';
+    document.getElementById('greeting-bubble').innerHTML = `<div class="typing-dots" id="typing-dots"><span></span><span></span><span></span></div>`;
+    document.getElementById('begin-btn').style.display = 'none';
+    document.getElementById('live-transcript').textContent = '';
+    document.getElementById('scanning-state').style.display = 'none';
+    document.getElementById('chat-drawer').classList.remove('open');
+    document.getElementById('chat-toggle-btn').classList.remove('active');
+    document.getElementById('chat-toggle-btn').style.display = 'none';
+    document.getElementById('chat-notif').classList.remove('show');
+    const dm = document.getElementById('drawer-messages');
+    dm.innerHTML = '<div class="drawer-empty" id="drawer-empty"><div class="drawer-empty-icon">💬</div><div class="drawer-empty-text">Conversation will appear here once Vita starts speaking</div></div>';
+    document.getElementById('greeting-heart').style.display = 'flex';
+    document.getElementById('greeting-text').style.display = 'none';
+    document.getElementById('greeting-text').textContent = '';
+    document.getElementById('intro-card').style.display = 'flex';
+    document.getElementById('intro-card').style.opacity = '1';
+    document.getElementById('intro-dot').classList.remove('ready');
+    document.getElementById('intro-status-text').textContent = 'Warming up camera...';
+    document.getElementById('thumbs-card').style.display = 'none';
+
+    STEPS.forEach((s, i) => {
+      const navEl = document.getElementById(s.navId);
+      navEl.classList.remove('active', 'done');
+      navEl.querySelector('.step-dot').textContent = i + 1;
+    });
+
+    document.getElementById('rec-dot').classList.remove('active');
+    document.getElementById('conn-dot').classList.remove('connected');
+  }, 800);
+}
+
+// ── MediaPipe landmark detection ──────────────────────────────────────────
+let lastFaceLandmarks = null;
+let lastHandLandmarks = [];
+let _lmTimestamp = 0;
+
+let _lastLMTime = performance.now();
+
+function runLandmarkDetection() {
+  const video = document.getElementById('video');
+  if (window.mediapipeReady && video.readyState >= 2) {
+    const now = performance.now();
+    if (now - _lmTimestamp > 80) {
+      const dt = now - _lastLMTime;
+      _lastLMTime = now;
+      _lmTimestamp = now;
+      try {
+        if (window.mpFaceLandmarker) {
+          const r = window.mpFaceLandmarker.detectForVideo(video, now);
+          lastFaceLandmarks = r.faceLandmarks?.[0] || null;
+        }
+        // Always run hand detection (needed for thumbs-up greeting trigger)
+        if (window.mpHandLandmarker) {
+          const r = window.mpHandLandmarker.detectForVideo(video, now);
+          lastHandLandmarks = r.landmarks || [];
+
+          // Thumbs-up greeting trigger (only while waiting for greeting)
+          if (!greetingTriggered && wizardPhase === 'greeting') {
+            const hasThumbsUp = lastHandLandmarks.some(isThumbsUp);
+            if (hasThumbsUp) {
+              thumbsUpHeldMs = Math.min(thumbsUpHeldMs + dt, THUMBS_HOLD_MS);
+              updateThumbsProgress(thumbsUpHeldMs);
+              if (thumbsUpHeldMs >= THUMBS_HOLD_MS) triggerGreetingScan();
+            } else {
+              // Decay quickly when hand drops
+              thumbsUpHeldMs = Math.max(0, thumbsUpHeldMs - dt * 2.5);
+              updateThumbsProgress(thumbsUpHeldMs);
+            }
+          }
+
+          // Only keep hand landmarks for CV overlay during nail/skin steps
+          if (cvPart !== 'nails' && cvPart !== 'skin') lastHandLandmarks = [];
+        }
+      } catch (_) {}
+    }
+  }
+  requestAnimationFrame(runLandmarkDetection);
+}
+runLandmarkDetection();
+
+function drawLandmarkHighlight(ctx, w, h) {
+  if (!cvScanning) return;
+  const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 280);
+  ctx.save();
+  ctx.lineWidth = 2.5;
+
+  if (cvPart === 'eyes' && lastFaceLandmarks) {
+    const color = `rgba(0,255,150,${pulse})`;
+    ctx.shadowColor = 'rgba(0,255,150,0.8)'; ctx.shadowBlur = 18;
+    ctx.strokeStyle = color;
+    const RIGHT_EYE = [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246];
+    const LEFT_EYE  = [362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398];
+    [RIGHT_EYE, LEFT_EYE].forEach(group => {
+      const pts = group.map(i => [w - lastFaceLandmarks[i].x * w, lastFaceLandmarks[i].y * h]);
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+      const cx = (Math.min(...xs)+Math.max(...xs))/2, cy = (Math.min(...ys)+Math.max(...ys))/2;
+      const rx = (Math.max(...xs)-Math.min(...xs))/2*1.6, ry = (Math.max(...ys)-Math.min(...ys))/2*2.2;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(0,255,150,0.08)`; ctx.fill(); ctx.stroke();
+    });
+  }
+
+  if ((cvPart === 'tongue' || cvPart === 'teeth') && lastFaceLandmarks) {
+    ctx.shadowColor = 'rgba(255,215,0,0.8)'; ctx.shadowBlur = 18;
+    ctx.strokeStyle = `rgba(255,215,0,${pulse})`;
+    const MOUTH = [61,146,91,181,84,17,314,405,321,375,291,308];
+    const pts = MOUTH.map(i => [w - lastFaceLandmarks[i].x * w, lastFaceLandmarks[i].y * h]);
+    const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+    const pad = 14;
+    const mx = Math.min(...xs)-pad, my = Math.min(...ys)-pad;
+    const mw = Math.max(...xs)-Math.min(...xs)+pad*2, mh = Math.max(...ys)-Math.min(...ys)+pad*2;
+    ctx.beginPath();
+    ctx.moveTo(mx+12,my); ctx.arcTo(mx+mw,my,mx+mw,my+mh,12);
+    ctx.arcTo(mx+mw,my+mh,mx,my+mh,12); ctx.arcTo(mx,my+mh,mx,my,12);
+    ctx.arcTo(mx,my,mx+mw,my,12); ctx.closePath();
+    ctx.fillStyle = `rgba(255,215,0,0.07)`; ctx.fill(); ctx.stroke();
+  }
+
+  if (cvPart === 'skin' && lastFaceLandmarks) {
+    ctx.shadowColor = 'rgba(0,190,255,0.8)'; ctx.shadowBlur = 18;
+    ctx.strokeStyle = `rgba(0,190,255,${pulse})`;
+    const OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+    const pts = OVAL.map(i => [w - lastFaceLandmarks[i].x * w, lastFaceLandmarks[i].y * h]);
+    ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+    pts.forEach(([px,py]) => ctx.lineTo(px,py)); ctx.closePath();
+    ctx.fillStyle = `rgba(0,190,255,0.05)`; ctx.fill(); ctx.stroke();
+  }
+
+  if (cvPart === 'nails' && lastHandLandmarks.length > 0) {
+    ctx.shadowColor = 'rgba(0,255,150,0.8)'; ctx.shadowBlur = 18;
+    ctx.strokeStyle = `rgba(0,255,150,${pulse})`;
+    const TIPS = [4,8,12,16,20];
+    lastHandLandmarks.forEach(hand => {
+      TIPS.forEach(tipIdx => {
+        const tip = hand[tipIdx], mid = hand[tipIdx-1];
+        const px = w - tip.x*w, py = tip.y*h;
+        const mx2 = w - mid.x*w, my2 = mid.y*h;
+        const size = Math.sqrt((px-mx2)**2+(py-my2)**2)*1.3;
+        const angle = Math.atan2(py-my2,px-mx2)+Math.PI/2;
+        ctx.beginPath(); ctx.ellipse(px,py,size*0.5,size*0.85,angle,0,Math.PI*2);
+        ctx.fillStyle = `rgba(0,255,150,0.15)`; ctx.fill(); ctx.stroke();
+      });
+    });
+  }
+
+  ctx.restore();
+}
+
+// ── CV Overlay ────────────────────────────────────────────────────────────
+let cvCanvas = document.getElementById('cv-overlay');
+let cvCtx = null;
+let cvAnimFrame = null;
+let cvScanning = false;
+let cvPart = '';
+
+function startCVScan(part) {
+  cvScanning = true; cvPart = part;
+  document.getElementById('video').classList.add('scanning');
+  if (!cvAnimFrame) animateCV();
+}
+
+function stopCVScan() {
+  cvScanning = false; cvPart = '';
+  document.getElementById('video').classList.remove('scanning');
+  if (cvAnimFrame) { cancelAnimationFrame(cvAnimFrame); cvAnimFrame = null; }
+  if (cvCtx) cvCtx.clearRect(0, 0, cvCanvas.width, cvCanvas.height);
+}
+
+function animateCV() {
+  const container = document.querySelector('.camera-container');
+  cvCanvas.width = container.offsetWidth;
+  cvCanvas.height = container.offsetHeight;
+  cvCtx = cvCanvas.getContext('2d');
+  const ctx = cvCtx, w = cvCanvas.width, h = cvCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!cvScanning) { cvAnimFrame = null; return; }
+
+  const t = Date.now() / 1000;
+  const pulse = 0.55 + 0.45 * Math.sin(t * 2.8);
+  const bx = w*0.12, by = h*0.08, bw = w*0.76, bh = h*0.78;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(0,0,w,by); ctx.fillRect(0,by+bh,w,h-by-bh);
+  ctx.fillRect(0,by,bx,bh); ctx.fillRect(bx+bw,by,w-bx-bw,bh);
+
+  ctx.strokeStyle = `rgba(0,153,255,${pulse})`;
+  ctx.lineWidth = 1.5; ctx.setLineDash([10,5]);
+  ctx.strokeRect(bx,by,bw,bh); ctx.setLineDash([]);
+
+  const cs = 18; ctx.lineWidth = 2.5; ctx.strokeStyle = '#0099ff';
+  [[bx,by,1,1],[bx+bw,by,-1,1],[bx,by+bh,1,-1],[bx+bw,by+bh,-1,-1]].forEach(([x,y,dx,dy]) => {
+    ctx.beginPath(); ctx.moveTo(x+dx*cs,y); ctx.lineTo(x,y); ctx.lineTo(x,y+dy*cs); ctx.stroke();
+  });
+
+  const scanY = by + ((t*55) % bh);
+  const sg = ctx.createLinearGradient(bx,0,bx+bw,0);
+  sg.addColorStop(0,'transparent'); sg.addColorStop(0.35,`rgba(0,153,255,0.1)`);
+  sg.addColorStop(0.5,`rgba(0,153,255,0.5)`); sg.addColorStop(0.65,`rgba(0,153,255,0.1)`);
+  sg.addColorStop(1,'transparent');
+  ctx.fillStyle = sg; ctx.fillRect(bx,scanY-1,bw,2);
+
+  const labelText = `SCANNING: ${cvPart.toUpperCase()}`;
+  ctx.font = 'bold 10px monospace';
+  const lw = ctx.measureText(labelText).width + 12;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(bx,by-22,lw,20);
+  ctx.fillStyle = '#0099ff'; ctx.fillText(labelText,bx+6,by-8);
+
+  drawLandmarkHighlight(ctx, w, h);
+  cvAnimFrame = requestAnimationFrame(animateCV);
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function setCamStatus(text) { document.getElementById('cam-status-text').textContent = text; }
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+function float32ToInt16(float32) {
+  const int16 = new Int16Array(float32.length);
+  for (let i = 0; i < float32.length; i++) int16[i] = Math.max(-32768, Math.min(32767, float32[i]*32768));
+  return int16;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+// ── Chat Drawer ───────────────────────────────────────────────────────────
+function toggleDrawer() {
+  drawerOpen = !drawerOpen;
+  const drawer = document.getElementById('chat-drawer');
+  const btn = document.getElementById('chat-toggle-btn');
+  drawer.classList.toggle('open', drawerOpen);
+  btn.classList.toggle('active', drawerOpen);
+  if (drawerOpen) {
+    // Clear unread badge when opened
+    unreadCount = 0;
+    const notif = document.getElementById('chat-notif');
+    notif.classList.remove('show');
+    notif.textContent = '';
+    // Scroll to bottom
+    const msgs = document.getElementById('drawer-messages');
+    setTimeout(() => { msgs.scrollTop = msgs.scrollHeight; }, 50);
+  }
+}
+
+function addToDrawer(role, text) {
+  const container = document.getElementById('drawer-messages');
+  const empty = document.getElementById('drawer-empty');
+  if (empty) empty.style.display = 'none';
+
+  conversationHistory.push({ role, text });
+
+  const el = document.createElement('div');
+  if (role === 'vita') {
+    el.className = 'drawer-msg-vita';
+    el.innerHTML = `<div class="d-avatar">V</div><div class="d-bubble">${escHtml(text)}</div>`;
+  } else {
+    el.className = 'drawer-msg-user';
+    el.innerHTML = `<div class="d-bubble">${escHtml(text)}</div>`;
+  }
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+
+  // Badge if drawer is closed
+  if (!drawerOpen && role === 'vita') {
+    unreadCount++;
+    const notif = document.getElementById('chat-notif');
+    notif.textContent = unreadCount > 9 ? '9+' : unreadCount;
+    notif.classList.add('show');
+  }
+}
+
+document.getElementById('user-id-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startSession();
+});
+
+document.getElementById('text-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextInput(); }
+});
+</script>
+
+<!-- Chat Drawer -->
+<div id="chat-drawer">
+  <div class="drawer-header">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--accent)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+    <div class="drawer-title">Transcript</div>
+    <button class="drawer-close" onclick="toggleDrawer()">
+      <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+  </div>
+  <div class="drawer-messages" id="drawer-messages">
+    <div class="drawer-empty" id="drawer-empty">
+      <div class="drawer-empty-icon">💬</div>
+      <div class="drawer-empty-text">Conversation will appear here once Vita starts speaking</div>
+    </div>
+  </div>
+</div>
+
+<!-- MediaPipe face + hand landmark detection -->
+<script type="module">
+import { FaceLandmarker, HandLandmarker, FilesetResolver }
+  from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/vision_bundle.mjs';
+try {
+  const vision = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm'
+  );
+  window.mpFaceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+      delegate: 'GPU',
+    },
+    runningMode: 'VIDEO', numFaces: 1,
+  });
+  window.mpHandLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+      delegate: 'GPU',
+    },
+    runningMode: 'VIDEO', numHands: 2,
+  });
+  window.mediapipeReady = true;
+  console.log('MediaPipe landmarks ready');
+} catch (e) {
+  console.warn('MediaPipe failed — landmark highlights disabled:', e);
+}
+</script>
+</body>
+</html>
